@@ -810,6 +810,14 @@ int main() {
 
     const auto workspaceCapture = extractFunction(captureSource, "bool captureWorkspacePreview(");
     expect(!workspaceCapture.empty(), "shared workspace capture implementation exists");
+    const auto framebufferPreparation = extractFunction(captureSource, "bool preparePreviewFramebuffer(");
+    expectContains(framebufferPreparation, "monitor->useFP16()", "preview allocation follows the monitor working-buffer precision");
+    expectContains(framebufferPreparation, "DRM_FORMAT_ABGR16161616F", "FP16 previews retain HDR values beyond the integer range");
+    expectContains(framebufferPreparation, "framebufferFormatWithAlpha(monitor->m_output->state->state().drmFormat)",
+                   "non-FP16 previews retain the output format with alpha");
+    expectContains(framebufferPreparation, "monitor->workBufferImageDescription()", "preview textures retain the captured working color space");
+    expectContains(framebufferPreparation, "prepareFramebuffer(", "both capture paths use the tested framebuffer preparation policy");
+    expectOrder(workspaceCapture, "preparePreviewFramebuffer(", "beginRender(", "workspace color metadata is established before capture rendering");
     for (const auto& token : {"beginRender(", "clearWithColor(", "applyExclusiveWorkspacePreviewState(", "applyWorkspaceWindowGoalState(", "CPinnedWindowPreviewGuard",
                               "renderWorkspace(", "restoreWorkspaceWindowGoalState(", "restoreWorkspacePreviewStates(", "restoreActiveWorkspaceAfterPreview(", "rendererState.finish()"})
         expectContains(workspaceCapture, token, "shared workspace capture preserves grid operation " + std::string{token});
@@ -828,6 +836,7 @@ int main() {
 
     const auto windowCapture = extractFunction(captureSource, "SWindowCaptureResult captureWindowPreview(");
     expect(!windowCapture.empty(), "tight scrolling-target capture implementation exists");
+    expectOrder(windowCapture, "preparePreviewFramebuffer(", "beginFullFakeRender(", "window captures use the same HDR-safe framebuffer policy before rendering");
     for (const auto& token : {"createFB(", "beginFullFakeRender(", "m_blockSurfaceFeedback = true", "m_renderingSnapshot = true", "startRenderPass(g_pHyprRenderer->context())", "renderWindow(",
                               "Render::RENDER_PASS_ALL, true, true", "blockScreenShader = true", "rendererState.finish()", "getTexture()", "result.completed"})
         expectContains(windowCapture, token, "tight target capture uses approved GPU operation " + std::string{token});
@@ -923,6 +932,31 @@ int main() {
     expectContains(sessionSource, "return nullptr", "detected scrolling initialization failure returns no session");
     expectAbsent(sessionSource, "using grid fallback", "detected scrolling never silently falls back to grid");
     expectOrder(sessionSource, "if (detectedScrolling)", "return std::make_unique<COverview>", "grid construction is reachable only after the detected-scrolling branch");
+
+    expectContains(configSource, "plugin:hyprexpo:overview_mode", "overview mode opt-out configuration is registered");
+    expectContains(configSource, "HyprexpoConfig::OVERVIEW_MODE_DEFAULT", "overview mode configuration has a compatibility default");
+    expectContains(sessionSource, "plugin:hyprexpo:overview_mode", "session factory reads the overview mode configuration");
+    expectContains(sessionSource, "#include \"HyprlandConfigCompat.hpp\"", "session factory includes the shared configuration compatibility boundary");
+    const auto sessionFactory = extractFunction(sessionSource, "std::unique_ptr<IOverviewSession> createOverviewSession(");
+    expectContains(sessionFactory, "const std::string overviewMode = CompatHyprlandAPI::stringValue(\"plugin:hyprexpo:overview_mode\");",
+                   "session factory obtains an owned overview mode through the safe string reader");
+    expectContains(sessionFactory, "overviewModePreferenceFromString(overviewMode)", "session factory parses the owned overview mode value");
+    const auto modeLookupStart = sessionFactory.find("const uint64_t generation =");
+    const auto modeLookupEnd = sessionFactory.find("const bool detectedScrolling");
+    expect(modeLookupStart != std::string::npos && modeLookupEnd != std::string::npos && modeLookupStart < modeLookupEnd,
+           "overview mode lookup lies between generation allocation and layout detection");
+    if (modeLookupStart != std::string::npos && modeLookupEnd != std::string::npos && modeLookupStart < modeLookupEnd) {
+        const auto modeLookup = sessionFactory.substr(modeLookupStart, modeLookupEnd - modeLookupStart);
+        expectAbsent(modeLookup, "static ", "overview mode is read afresh for every session");
+        expectAbsent(modeLookup, "getDataStaticPtr", "overview mode lookup does not retain a borrowed configuration pointer");
+    }
+    expectContains(extractFunction(source, "static Config::STRING stringDefault("),
+                   "{\"plugin:hyprexpo:overview_mode\", HyprexpoConfig::OVERVIEW_MODE_DEFAULT}",
+                   "missing overview mode config uses the shared auto default");
+    expectContains(sessionSource, "overviewModePreferenceFromString", "session factory parses the overview mode configuration through the shared pure parser");
+    expectContains(sessionSource, "EOverviewModePreference::Grid", "session factory checks for the forced-grid overview mode preference");
+    expectOrder(sessionSource, "plugin:hyprexpo:overview_mode", "detectedScrolling", "overview mode is read before scrolling layout detection runs");
+    expectOrder(sessionSource, "forcedGrid", "workspaceUsesScrollingLayout(startedOn)", "a forced-grid preference can short-circuit scrolling layout detection");
     expectContains(dispatchersSource, "createOverview(monitor)", "dispatcher creates sessions through the monitor registry");
     expectContains(source, "createOverviewSession(monitor->m_activeWorkspace, monitor, swipe)", "registry passes the explicit monitor to the sole session factory");
     expectContains(dispatchersSource, "failed to initialize native scrolling overview", "dispatcher reports fail-closed scrolling creation");

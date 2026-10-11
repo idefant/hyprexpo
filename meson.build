@@ -84,6 +84,8 @@ test('OverviewSourceTests', source_tests,
 )
 
 registry_tests = executable('RegistryTeardownTests', files('tests/RegistryTeardownTests.cpp'))
+framebuffer_tests = executable('PreviewFramebufferTests', files('tests/PreviewFramebufferTests.cpp'))
+test('PreviewFramebufferTests', framebuffer_tests)
 test('RegistryTeardownTests', registry_tests)
 
 executable('ScrollingInputOracle', files(

@@ -58,6 +58,7 @@ test_hash
 hyprexpo_logic_tests
 HyprexpoLogicTests
 OverviewSourceTests
+PreviewFramebufferTests
 RegistryTeardownTests
 ScrollingInputOracle
 

@@ -3,6 +3,7 @@
 #include "OverviewInternal.hpp"
 #include "HyprlandConfigCompat.hpp"
 #include "HyprexpoConfig.hpp"
+#include "PreviewFramebuffer.hpp"
 
 #define private   public
 #define protected public
@@ -125,15 +126,12 @@ class CMonitorStateGuard {
     bool                m_restored         = false;
 };
 
-bool ensureFramebuffer(SP<Render::IFramebuffer>& framebuffer, const CBox& box, uint32_t drmFormat) {
-    if (!framebuffer)
-        framebuffer = g_pHyprRenderer->createFB("hyprexpo workspace preview");
+bool preparePreviewFramebuffer(const SP<Render::IFramebuffer>& framebuffer, const PHLMONITOR& monitor, int width, int height) {
     if (!framebuffer)
         return false;
-    if (framebuffer->m_size == box.size())
-        return true;
-    framebuffer->release();
-    return framebuffer->alloc(box.w, box.h, drmFormat);
+    // Capture in the monitor's working color space.
+    const auto format = monitor->useFP16() ? DRM_FORMAT_ABGR16161616F : framebufferFormatWithAlpha(monitor->m_output->state->state().drmFormat);
+    return prepareFramebuffer(*framebuffer, width, height, format, monitor->workBufferImageDescription());
 }
 
 }
@@ -178,7 +176,9 @@ bool captureWorkspacePreview(const SWorkspaceCaptureRequest& request, SP<Render:
             request.monitor->m_transformedSize = captureBox.size();
         }
 
-        if (!ensureFramebuffer(framebuffer, captureBox, framebufferFormatWithAlpha(request.monitor->m_output->state->state().drmFormat)))
+        if (!framebuffer)
+            framebuffer = g_pHyprRenderer->createFB("hyprexpo workspace preview");
+        if (!preparePreviewFramebuffer(framebuffer, request.monitor, captureBox.w, captureBox.h))
             return false;
 
         if (monitorState.activeSpecialWorkspace())
@@ -287,11 +287,10 @@ SWindowCaptureResult captureWindowPreview(const WP<Layout::ITarget>& targetRef, 
 
         Render::GL::g_pHyprOpenGL->makeEGLCurrent();
         const auto framebuffer = g_pHyprRenderer->createFB("hyprexpo scrolling target preview");
-        if (!framebuffer || !framebuffer->alloc(width, height, DRM_FORMAT_ABGR8888)) {
+        if (!preparePreviewFramebuffer(framebuffer, monitor, width, height)) {
             result.error = "target framebuffer allocation failed";
             return result;
         }
-        framebuffer->setImageDescription(monitor->workBufferImageDescription());
 
         CRegion fakeDamage{0, 0, width, height};
         CRendererStateGuard rendererState{g_pHyprRenderer.get()};

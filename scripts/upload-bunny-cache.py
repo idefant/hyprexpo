@@ -55,7 +55,10 @@ def publish(directory, environ=os.environ, open_url=open_storage):
                     return
             except HTTPError as error:
                 error.close()
-                if error.code not in (404, 405):
+                # Bunny's storage API can reject HEAD even when PUT is allowed.
+                # Treat it as an unavailable deduplication probe; PUT remains
+                # authoritative and still fails on invalid write credentials.
+                if error.code not in (401, 404, 405):
                     raise RuntimeError(f"Bunny cache lookup failed (HTTP {error.code})") from None
         with path.open("rb") as content:
             request = Request(url, data=content, method="PUT", headers={
