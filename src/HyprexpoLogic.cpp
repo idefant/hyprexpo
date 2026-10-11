@@ -452,6 +452,14 @@ bool shouldAbortOverviewCloseForWorkspaceMove(bool windowPinned, bool movedOnOve
     return !windowPinned && movedOnOverviewMonitor;
 }
 
+EOverviewModePreference overviewModePreferenceFromString(const std::string& mode) {
+    const auto normalized = lowerString(trimString(mode));
+    if (normalized == "grid")
+        return EOverviewModePreference::Grid;
+
+    return EOverviewModePreference::Auto;
+}
+
 SDropIntentGeometry computeDropIntentGeometry(const SDropIntentInput& input) {
     SDropIntentGeometry geometry;
 

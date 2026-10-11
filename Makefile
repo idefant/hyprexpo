@@ -24,9 +24,11 @@ LIBS = $(shell pkg-config --libs $(LINK_DEPS))
 
 SRC = src/main.cpp src/Dispatchers.cpp src/PluginConfig.cpp src/IOverviewSession.cpp src/Overview.cpp src/OverviewInteraction.cpp src/OverviewRender.cpp src/OverviewCapture.cpp src/ScrollingOverview.cpp src/ScrollingInputState.cpp src/ExpoGesture.cpp src/OverviewPassElement.cpp src/HyprexpoLogic.cpp src/ScrollingOverviewLogic.cpp src/ScrollingMutationTransaction.cpp src/ScrollingLayoutAdapter.cpp src/ScrollingDiagnostics.cpp
 HEADERS = src/globals.hpp src/Dispatchers.hpp src/PluginConfig.hpp src/HyprlandConfigCompat.hpp src/IOverviewSession.hpp src/Overview.hpp src/OverviewInternal.hpp src/OverviewCapture.hpp src/ScrollingOverview.hpp src/ScrollingInputState.hpp src/ScrollingRequestId.hpp src/ExpoGesture.hpp src/OverviewPassElement.hpp src/HyprexpoConfig.hpp src/HyprexpoLogic.hpp src/ScrollingOverviewLogic.hpp src/ScrollingMutationTransaction.hpp src/ScrollingLayoutAdapter.hpp src/ScrollingDiagnostics.hpp
+HEADERS += src/PreviewFramebuffer.hpp
 TARGET = hyprexpo.so
 TEST_TARGET = HyprexpoLogicTests
 SOURCE_TEST_TARGET = OverviewSourceTests
+FRAMEBUFFER_TEST_TARGET = PreviewFramebufferTests
 REGISTRY_TEST_TARGET = RegistryTeardownTests
 INPUT_ORACLE_TARGET = ScrollingInputOracle
 INSTALL_USER ?= $(if $(SUDO_USER),$(SUDO_USER),$(USER))
@@ -71,11 +73,12 @@ install: check-hyprpm-state $(TARGET)
 	install -Dm755 "$(TARGET)" "$(INSTALL_DIR)/$(INSTALL_NAME)"
 
 clean:
-	rm -f ./$(TARGET) ./$(TEST_TARGET) ./$(SOURCE_TEST_TARGET) ./$(REGISTRY_TEST_TARGET) ./$(INPUT_ORACLE_TARGET)
+	rm -f ./$(TARGET) ./$(TEST_TARGET) ./$(SOURCE_TEST_TARGET) ./$(FRAMEBUFFER_TEST_TARGET) ./$(REGISTRY_TEST_TARGET) ./$(INPUT_ORACLE_TARGET)
 
-test: $(TEST_TARGET) $(SOURCE_TEST_TARGET) $(REGISTRY_TEST_TARGET)
+test: $(TEST_TARGET) $(SOURCE_TEST_TARGET) $(FRAMEBUFFER_TEST_TARGET) $(REGISTRY_TEST_TARGET)
 	./$(TEST_TARGET)
 	./$(SOURCE_TEST_TARGET)
+	./$(FRAMEBUFFER_TEST_TARGET)
 	./$(REGISTRY_TEST_TARGET)
 
 test-tooling:
@@ -89,6 +92,8 @@ $(SOURCE_TEST_TARGET): tests/OverviewSourceTests.cpp src/IOverviewSession.hpp sr
 
 $(REGISTRY_TEST_TARGET): tests/RegistryTeardownTests.cpp
 	$(CXX) -std=c++2b -Wall -Wextra -Werror tests/RegistryTeardownTests.cpp -o $@
+$(FRAMEBUFFER_TEST_TARGET): tests/PreviewFramebufferTests.cpp src/PreviewFramebuffer.hpp
+	$(CXX) -std=c++2b -Wall -Wextra -Werror tests/PreviewFramebufferTests.cpp -o $@
 $(INPUT_ORACLE_TARGET): src/HyprexpoLogic.cpp src/HyprexpoLogic.hpp src/ScrollingOverviewLogic.cpp src/ScrollingOverviewLogic.hpp src/ScrollingInputState.cpp src/ScrollingInputState.hpp src/ScrollingRequestId.hpp tests/ScrollingInputOracle.cpp
 	$(CXX) -std=c++2b -Wall -Wextra -Werror src/HyprexpoLogic.cpp src/ScrollingOverviewLogic.cpp src/ScrollingInputState.cpp tests/ScrollingInputOracle.cpp -o $@
 

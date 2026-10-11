@@ -6,6 +6,13 @@ session; non-scrolling, empty, expired, or incompatible state falls back to the
 existing workspace grid. The grid implementation itself has no scrolling mode
 branches.
 
+Set `plugin:hyprexpo:overview_mode = grid` to opt out of this detection
+entirely and always open the classic workspace grid, even on workspaces whose
+resolved layout is `scrolling`. This is the setting for anyone running
+`general.layout = scrolling` as their global default who wants the exposé-style
+grid rather than the scrolling tape. The default, `auto`, is the detection
+behavior described above.
+
 This is a focused Hyprland-native overview, not full Niri parity. It implements
 the scrolling tape, individual window previews, input, panning, selection, and
 safe positional moves. It does not implement hot corners, dwell activation,

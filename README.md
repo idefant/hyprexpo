@@ -1,62 +1,59 @@
+<div align="center">
+
 # HyprExpo
 
-HyprExpo is a maintained Hyprland plugin for expose-style workspace overview with keyboard selection, drag-drop window movement, labels, configurable gaps and borders, multi-monitor placement, and Lua gestures.
+**An Exposé-style workspace and window overview for Hyprland.**
+
+[![Release](https://img.shields.io/github/v/release/sandwichfarm/hyprexpo?style=for-the-badge)](https://github.com/sandwichfarm/hyprexpo/releases)
+[![Compatibility checks](https://img.shields.io/github/actions/workflow/status/sandwichfarm/hyprexpo/compatibility.yml?branch=master&style=for-the-badge&label=compatibility)](https://github.com/sandwichfarm/hyprexpo/actions/workflows/compatibility.yml)
+[![BSD 3-Clause license](https://img.shields.io/github/license/sandwichfarm/hyprexpo?style=for-the-badge)](LICENSE)
+
+[Quick start](#quick-start) · [Documentation](https://hyprexpo.lol/docs/) · [Configuration](#quick-config) · [Troubleshooting](docs/troubleshooting.md)
+
+</div>
 
 https://github.com/user-attachments/assets/861baa26-46b6-4fa8-8d37-65cbb9ecbed4
 
-Native Hyprland scrolling-layout workspaces open a separate window-level
-scrolling overview. It preserves the full offscreen tape, supports pointer,
-touch, keyboard, panning, and positional window moves, and reuses grid captures
-for mixed-layout rows. This is intentionally not full Niri parity: hot corners,
-dwell activation, layer-shell/wallpaper composition, and arbitrary workspace
-insertion are outside the implemented contract.
+## What is this?
 
-If you experience any bugs, you are encouraged to [open an issue](https://github.com/sandwichfarm/hyprexpo/issues/new). Information I can use to reproduce a bug is appreciated. 
+HyprExpo is a maintained Hyprland plugin that lets you inspect workspaces, select
+one with the pointer or keyboard, and move windows by dragging their previews.
+It continues the original HyprExpo plugin with configurable grids, labels,
+borders, multi-monitor placement, and Lua gestures.
 
-[Docs (markdown)](docs/index.md) - [Docs (website)](http://hyprexpo.lol/docs) - [Announcement Post](https://www.reddit.com/r/hyprland/comments/1o30dsg/hyprexpoplus_outer_gaps_keyboard_navigation_and/)
+- **Workspace grids:** square, rectangular, or dynamic layouts, with workspace
+  names, configurable gaps, rounded tiles, and borders.
+- **Keyboard and gestures:** focus navigation, workspace or visible-position
+  selection, cancellation, and Lua-configured touchpad gestures.
+- **Multi-monitor placement:** choose which workspaces appear on each monitor.
+- **Native scrolling overview:** inspect individual windows, including offscreen
+  windows, pan through the layout, and move windows within or between workspaces.
+  Mixed-layout rows reuse workspace previews.
 
-## History
+The [scrolling overview](docs/guides/scrolling-overview.md) supports pointer,
+touch, and keyboard input. Its scope excludes hot corners, dwell activation,
+layer-shell/wallpaper composition, and arbitrary workspace insertion.
 
-HyprExpo continues the original expose-style workspace overview plugin from the Hyprland plugins ecosystem. After [the upstream plugin was retired](https://github.com/hyprwm/hyprland-plugins/pull/507#issuecomment-4433386463) from official plugins, this fork signaled contiuation and intends to chase Hyprland releases.
+## Quick Start
 
-Born from [a PR to the old official HyprExpo](https://github.com/hyprwm/hyprland-plugins/pull/507) and formerly known as HyperExpo+ (`hyprexpo-plus`), has become the home for practical additions that made the
-overview more usable day to day: keyboard navigation, visible workspace labels, configurable gaps and borders, multi-monitor placement, and Lua gesture setup.
-See the [upstream retirement context](https://github.com/hyprwm/hyprland-plugins/pull/663)
-and the [original launch announcement of this plugin](https://www.reddit.com/r/hyprland/comments/1o30dsg/hyprexpoplus_outer_gaps_keyboard_navigation_and/)
-for the project's well established background.
+### 1. Check compatibility
 
-## Related
+`master` supports tagged Hyprland **v0.56.1 and v0.56.2**. The plugin must be
+built against the **exact revision and dependency ABI** of your running
+compositor; a binary built for one release is not interchangeable with another.
 
-- https://github.com/colonelpanic8/hyprexpo - Another HyprExpo fork 
+```bash
+hyprctl version
+```
 
-____
+This development checkout pins Hyprland
+`663b29b846e4bad17cfa29941f6d2fbb6b61f139`. For Hyprland-git, use the separate [development installation guide](docs/guides/development-installation.md).
+For Nix-managed Hyprland, use the [Nix installation path](#nix).
 
-## Branches and Releases
+<a id="install"></a>
+<a id="hyprpm"></a>
 
-This development candidate pins Hyprland
-`34eb03bd8da01024596c367fba66485a8c9b8ca7`. Use the
-[development installation guide](docs/guides/development-installation.md) for
-its matching source, dependencies, and validation boundaries.
-
-`master` is the default branch for supported, released Hyprland versions.
-The separate `hyprland-git` track targets explicitly tested upstream
-development commits. Compatible fixes flow from `master` into the chase branch;
-support for a new Hyprland release is promoted back through a validated PR
-using the compatible candidate commit. Older `release/*` branches are optional
-and require an explicit maintenance commitment.
-
-See the [branch and release policy](docs/reference/branch-policy.md) for branch
-contracts, promotion gates, package and pin handling, and the rollout checklist.
-Use the [development installation guide](docs/guides/development-installation.md)
-for explicit hyprpm revision selection and aligned Nix inputs.
-
-## Install
-
-`master` targets tagged Hyprland **v0.56.1 and v0.56.2**. Build against the
-exact revision and dependencies used by your compositor. Hyprland-git is a
-separate compatibility target; see [compatibility and release provenance](docs/reference/compatibility.md).
-
-### hyprpm
+### 2. Install with hyprpm
 
 ```bash
 hyprpm add https://github.com/sandwichfarm/hyprexpo
@@ -64,147 +61,20 @@ hyprpm enable hyprexpo
 hyprpm reload
 ```
 
-The repository name in `hyprpm.toml` is `hyprexpo`, and the built plugin output is `hyprexpo.so`.
-The release pins from PR #112 intentionally select earlier compatible plugin
-commits for v0.56.1 and v0.56.2. A source fix on master does not automatically
-change those pins.
+The repository and plugin are both named `hyprexpo`; the build output is
+`hyprexpo.so`. On supported releases, hyprpm uses the compatible commits listed
+in [`hyprpm.toml`](hyprpm.toml). Changes on `master` do not automatically move
+those pins.
 
-### Build From Source
+### 3. Bind and open the overview
 
-Install a C++23 compiler, `pkg-config`, Hyprland development headers, and these pkg-config packages:
-
-```text
-hyprland pixman-1 libdrm pangocairo libinput libudev wayland-server xkbcommon lua5.4
-```
-
-The build prefers the `lua5.4` pkg-config module and falls back to `lua` for
-distributions such as Fedora where `lua-devel` exposes the generic module name.
-
-Build with the Makefile:
-
-```bash
-git clone https://github.com/sandwichfarm/hyprexpo
-cd hyprexpo
-make all
-```
-
-For day-to-day development, prefer a disposable nested Hyprland session. This
-matches Hyprland's plugin development guidance: build the plugin, load it by
-absolute path with `hyprctl plugin load`, then unload and load again after
-changes.
-
-```bash
-./scripts/run-nested.sh
-```
-
-If you already have a disposable Hyprland session running, build to a
-user-owned cache path and load or reload that `.so` directly:
-
-```bash
-make dev-load
-make dev-reload
-```
-
-Only replace the hyprpm-managed copy when you intentionally want the installed
-plugin to point at this checkout's build:
-
-```bash
-make install
-hyprpm reload
-```
-
-If your distro or install path stores hyprpm artifacts under a root-owned cache,
-keep privilege at the command line instead of baking `sudo` into the Makefile:
-
-```bash
-sudo make install INSTALL_USER="$USER"
-hyprpm reload
-```
-
-Use `install` or `make install`, not plain `cp`, when replacing a loaded `.so`.
-Hyprland maps plugin files into the running process, and overwriting that file
-in place can corrupt the live mapping.
-
-Other build entry points:
-
-```bash
-meson setup build
-meson compile -C build
-```
-
-```bash
-cmake -S . -B build
-cmake --build build
-```
-
-### Nix
-
-Nix users should build HyprExpo through the Nix Hyprland plugin path instead of mixing a `hyprpm` artifact into a Nix-managed Hyprland session. This repository includes `default.nix`, which uses `hyprlandPlugins.mkHyprlandPlugin` so the plugin follows the Hyprland input supplied by the caller.
-
-Hyprland plugins are ABI-sensitive. Keep the plugin build and running Hyprland revision aligned.
-The `master` flake defaults to v0.56.2. This development candidate instead
-pins the upstream commit above. Select a compatible plugin branch and align
-its Hyprland input with the running system; overriding development source to
-a released Hyprland input does not make the APIs compatible.
-
-## Quick Config
-
-Add the plugin block to your Hyprland config:
-
-```ini
-plugin {
-    hyprexpo {
-        columns = 3
-        rows = 0 # Follow columns; use a positive value for a rectangular fixed grid.
-        gaps_in = 5
-        gaps_out = 0
-        bg_col = rgb(111111)
-        workspace_method = center current
-        gesture_distance = 200
-        cancel_key = escape
-        show_cursor = 1
-        show_pinned_windows = 0
-        drag_drop_enable = 0 # Disable moving windows by dragging workspace previews.
-    }
-}
-```
-
-For `hyprland.lua`, use `hl.config()`:
-
-```lua
-hl.config({
-    plugin = {
-        hyprexpo = {
-            columns = 3,
-            rows = 0, -- Follow columns; positive values set fixed-grid rows.
-            gaps_in = 5,
-            gaps_out = 0,
-            bg_col = "rgb(111111)",
-            workspace_method = "center current",
-            gesture_distance = 200,
-            cancel_key = "escape",
-            show_cursor = 1,
-            drag_drop_enable = 0, -- Disable moving windows by dragging workspace previews.
-        },
-    },
-})
-```
-
-`drag_drop_enable` defaults to `1`. Set it to `0` to keep workspace clicks from moving windows when the pointer shifts during a click.
-
-For ten fixed-grid slots, use `columns = 5`, `rows = 2`, `dynamic_grid = 0`,
-and `skip_empty = 0`. Empty workspaces remain selectable and can receive dragged
-windows. `rows = 0` (the default) keeps the existing square grid; positive rows
-are clamped to `1..7`. Dynamic grids and native scrolling overviews size themselves
-as before and ignore `rows`.
-
-Add a dispatcher binding:
+Add the binding for your active config format. In `hyprland.conf`:
 
 ```ini
 bind = SUPER, g, hyprexpo:expo, toggle
 ```
 
-Or in Lua:
+Or in `hyprland.lua`:
 
 ```lua
 hl.bind("SUPER + G", function()
@@ -212,68 +82,71 @@ hl.bind("SUPER + G", function()
 end)
 ```
 
-Optional keyboard navigation:
+Reload your configuration, then press **Super + G** to open the overview. Click a
+workspace preview to select it; press **Escape** to cancel. For arrow-key or
+Vim-style navigation, add the [keyboard submap bindings](docs/configuration/keyboard.md)
+for your config format.
+
+To confirm the plugin loaded and check for configuration errors:
+
+```bash
+hyprctl plugin list
+hyprctl configerrors
+```
+
+See [troubleshooting](docs/troubleshooting.md) if loading or configuration fails.
+
+## Quick Config
+
+The defaults work without a plugin block. To customize the workspace grid, add
+this to `hyprland.conf`:
 
 ```ini
 plugin {
     hyprexpo {
-        keynav_enable = 1
-        number_key_mode = passthrough
-        keynav_wrap_h = 1
-        keynav_wrap_v = 1
-        keynav_reading_order = 0
+        columns = 3
+        rows = 0 # Follow columns for a square grid.
+        gaps_in = 5
+        gaps_out = 0
+        bg_col = rgb(111111)
+        workspace_method = center current
     }
 }
 ```
 
-`number_key_mode` controls the plugin's automatic raw digit handling:
-
-- `workspace` (default) keeps selecting global workspace IDs.
-- `index` selects positions in the active overview; for example, `2` selects
-  its second visible tile even when that tile is workspace 11.
-- `passthrough` leaves digits to user-defined mappings such as the `kb_selecti`
-  bindings below.
-
-```ini
-submap = hyprexpo
-    bind = , left,   hyprexpo:kb_focus, left
-    bind = , right,  hyprexpo:kb_focus, right
-    bind = , up,     hyprexpo:kb_focus, up
-    bind = , down,   hyprexpo:kb_focus, down
-    bind = , return, hyprexpo:kb_confirm
-    bind = , escape, hyprexpo:expo, cancel
-    bind = , 1,      hyprexpo:kb_selecti, 1
-    bind = , 2,      hyprexpo:kb_selecti, 2
-    bind = , 3,      hyprexpo:kb_selecti, 3
-    bind = , 4,      hyprexpo:kb_selecti, 4
-    bind = , 5,      hyprexpo:kb_selecti, 5
-    bind = , 6,      hyprexpo:kb_selecti, 6
-    bind = , 7,      hyprexpo:kb_selecti, 7
-    bind = , 8,      hyprexpo:kb_selecti, 8
-    bind = , 9,      hyprexpo:kb_selecti, 9
-    bind = , 0,      hyprexpo:kb_selecti, 10
-submap = reset
-```
-
-For `hyprland.lua`, define the same active submap in Lua instead of adding a
-`submap = hyprexpo` block to `hyprland.conf`:
+For `hyprland.lua`, use `hl.config()` instead:
 
 ```lua
-hl.define_submap("hyprexpo", function()
-    hl.bind("h",      function() hl.plugin.hyprexpo.kb_focus("left") end)
-    hl.bind("l",      function() hl.plugin.hyprexpo.kb_focus("right") end)
-    hl.bind("k",      function() hl.plugin.hyprexpo.kb_focus("up") end)
-    hl.bind("j",      function() hl.plugin.hyprexpo.kb_focus("down") end)
-    hl.bind("return", function() hl.plugin.hyprexpo.kb_confirm() end)
-    hl.bind("escape", function() hl.plugin.hyprexpo.expo("cancel") end)
-end)
+hl.config({
+    plugin = {
+        hyprexpo = {
+            columns = 3,
+            rows = 0, -- Follow columns for a square grid.
+            gaps_in = 5,
+            gaps_out = 0,
+            bg_col = "rgb(111111)",
+            workspace_method = "center current",
+        },
+    },
+})
 ```
 
-## Active workspace grid
+- **Ten fixed slots:** set `columns = 5`, `rows = 2`, `dynamic_grid = 0`, and
+  `skip_empty = 0`. Empty workspaces remain selectable and accept dragged windows.
+  Positive `rows` values are clamped to `1..7`; dynamic grids and native scrolling
+  overviews ignore this option.
+- **Click without moving windows:** set `drag_drop_enable = 0` to disable dragging
+  workspace previews. Drag and drop is enabled by default.
+- **Pinned/PiP previews:** `show_pinned_windows = 0` hides them from thumbnails
+  by default, while leaving their normal Hyprland behavior unchanged.
+- **Number keys:** `number_key_mode = workspace` selects global workspace IDs;
+  `index` selects visible positions; `passthrough` leaves digits to your own binds.
 
-For a more dynamic workspace grid with labels and wallpaper background:
+### Active workspace grid
 
-```
+For a dynamic grid with workspace labels and a wallpaper background:
+
+```ini
 plugin {
     hyprexpo {
         dynamic_grid = 1
@@ -287,23 +160,136 @@ plugin {
 }
 ```
 
-For more options, see the [configuration options](https://hyprexpo.lol/docs/configuration/options/).
+In Lua, put these options inside the `plugin.hyprexpo` table passed to
+`hl.config()` above. See [all configuration options](docs/configuration/options.md),
+[labels and borders](docs/configuration/labels-borders.md), and
+[Lua gestures](docs/guides/lua-gestures.md) for complete examples.
 
-## Next Steps
+## Other Installation Methods
 
-- [Chasing Hyprland](https://hyprexpo.lol/docs/guides/chasing-hyprland/)
-- [Repository layout and development-branch reconciliation](docs/reference/repository-layout.md)
+### Build From Source
 
-- [Installation details](https://hyprexpo.lol/docs/getting-started/installation/)
-- [Quick start](https://hyprexpo.lol/docs/getting-started/quick-start/)
-- [All configuration options](https://hyprexpo.lol/docs/configuration/options/)
-- [Labels and borders](https://hyprexpo.lol/docs/configuration/labels-borders/)
-- [Keyboard navigation](https://hyprexpo.lol/docs/configuration/keyboard/)
-- [Lua gestures](https://hyprexpo.lol/docs/guides/lua-gestures/)
-- [Multi-monitor placement](https://hyprexpo.lol/docs/guides/multi-monitor/)
-- [Migration from old keyword config](https://hyprexpo.lol/docs/guides/migration/)
-- [Runtime smoke checklist](https://hyprexpo.lol/docs/guides/runtime-smoke/)
-- [Scrolling overview guide](https://hyprexpo.lol/docs/guides/scrolling-overview/)
-- [Compatibility and release provenance](https://hyprexpo.lol/docs/reference/compatibility/)
-- [Dispatcher reference](https://hyprexpo.lol/docs/reference/dispatchers/)
-- [Troubleshooting](https://hyprexpo.lol/docs/troubleshooting/)
+Install a C++23 compiler, `pkg-config`, Hyprland development headers matching your
+compositor, and these pkg-config packages:
+
+```text
+hyprland pixman-1 libdrm pangocairo libinput libudev wayland-server xkbcommon lua5.4
+```
+
+The build prefers `lua5.4` and falls back to `lua` on distributions that expose
+the generic module name.
+
+```bash
+git clone https://github.com/sandwichfarm/hyprexpo
+cd hyprexpo
+make all
+```
+
+Test local builds in a disposable nested session with `./scripts/run-nested.sh`.
+Use `make dev-load` and `make dev-reload` from an existing disposable session.
+See the [installation guide](docs/getting-started/installation.md) for Meson,
+CMake, and managed installation commands, and follow the
+[local installation contract](CONTRIBUTING.md#local-installation-contract).
+
+Do not overwrite a loaded `.so` with `cp`: replacing its contents in place can
+corrupt Hyprland's live memory mapping. Keep PR commits and temporary branches
+out of a desktop's saved hyprpm revision; use the development load commands for
+PR testing.
+
+### Nix
+
+Use the repository's [`flake.nix`](flake.nix) or [`default.nix`](default.nix)
+through the Nix Hyprland plugin path. Keep the plugin and compositor on the same
+Hyprland input; do not mix a hyprpm artifact into a Nix-managed session.
+
+The `master` flake defaults to Hyprland v0.56.2. This development checkout pins
+the upstream commit above. Input overrides must select a revision supported by
+the plugin source; a release input cannot make development APIs compatible. See [Nix installation](docs/getting-started/installation.md#nix)
+and the [aligned-input examples](docs/guides/development-installation.md#nix-consumer).
+
+## Branches and Releases
+
+| Track | Compatibility contract |
+| --- | --- |
+| `master` | Supported tagged Hyprland releases: v0.56.1 and v0.56.2. |
+| `hyprland-git` | Explicitly tested upstream development commits; check its current pin before installing. |
+
+Shared fixes flow from `master` into `hyprland-git`. Support for a new Hyprland
+release returns through a validated promotion PR. See the
+[branch and release policy](docs/reference/branch-policy.md) and
+[compatibility and release provenance](docs/reference/compatibility.md).
+
+<a id="next-steps"></a>
+
+## Documentation
+
+Browse the [documentation website](https://hyprexpo.lol/docs/) or the
+[Markdown index](docs/index.md).
+
+| Guide | Use it to… |
+| --- | --- |
+| [Installation](docs/getting-started/installation.md) | Install with hyprpm, build from source, or use Nix. |
+| [Quick start](docs/getting-started/quick-start.md) | Configure an overview and its keyboard bindings. |
+| [Configuration options](docs/configuration/options.md) | Look up defaults and layout settings. |
+| [Keyboard navigation](docs/configuration/keyboard.md) | Set up submaps, number keys, and cancellation. |
+| [Dispatchers](docs/reference/dispatchers.md) | Control the overview from binds and Lua. |
+| [Multi-monitor placement](docs/guides/multi-monitor.md) | Choose workspace placement per monitor. |
+| [Scrolling overview](docs/guides/scrolling-overview.md) | Use window previews, panning, and positional moves. |
+| [Migration](docs/guides/migration.md) | Replace old keyword configuration. |
+| [Troubleshooting](docs/troubleshooting.md) | Diagnose loading, configuration, and saved-revision errors. |
+| [Chasing Hyprland](docs/guides/chasing-hyprland.md) | Prepare a bounded development compatibility candidate. |
+| [Runtime smoke checklist](docs/guides/runtime-smoke.md) | Check loading, interaction, and teardown. |
+
+## Project Structure
+
+```text
+hyprexpo/
+├── .github/workflows/  # Compatibility, release, and site CI
+├── docs/              # User guides and reference documentation
+├── scripts/           # Build, development, validation, and release helpers
+├── site/              # Website sources
+├── src/               # Plugin implementation and private headers
+├── tests/             # C++ regression suites and Python tooling tests
+├── Makefile           # Primary build; produces hyprexpo.so
+├── flake.nix          # Nix plugin and matching compositor packages
+└── hyprpm.toml        # Plugin metadata and release compatibility pins
+```
+
+See [repository layout](docs/reference/repository-layout.md) for the full build
+and directory conventions.
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing compatibility or a managed
+installation. Include the Hyprland revision you tested and the relevant
+[smoke-check results](docs/guides/runtime-smoke.md) with your change.
+
+For bug reports, [open an issue](https://github.com/sandwichfarm/hyprexpo/issues/new)
+with steps to reproduce, `hyprctl version`, your installation method, relevant
+plugin configuration, and any errors.
+
+[![HyprExpo contributors](https://contrib.rocks/image?repo=sandwichfarm/hyprexpo)](https://github.com/sandwichfarm/hyprexpo/graphs/contributors)
+
+## History
+
+This fork began with [additions to the original HyprExpo](https://github.com/hyprwm/hyprland-plugins/pull/507)
+and was previously known as **HyprExpo+** (`hyprexpo-plus`). It continues
+maintenance after [the upstream plugin was retired](https://github.com/hyprwm/hyprland-plugins/pull/663).
+See the [original announcement](https://www.reddit.com/r/hyprland/comments/1o30dsg/hyprexpoplus_outer_gaps_keyboard_navigation_and/)
+for the early feature set.
+
+### Related
+
+[colonelpanic8/hyprexpo](https://github.com/colonelpanic8/hyprexpo) is another
+HyprExpo fork.
+
+## License
+
+[BSD 3-Clause](LICENSE), with the original Hypr Development copyright retained.
+
+<details>
+<summary>Star history</summary>
+
+[![Star history](https://api.star-history.com/svg?repos=sandwichfarm/hyprexpo&type=Date)](https://star-history.com/#sandwichfarm/hyprexpo&Date)
+
+</details>

@@ -87,6 +87,7 @@ static bool isFloatConfig(const std::string& name) {
 
 static Config::STRING stringDefault(const std::string& name) {
     static const std::map<std::string, Config::STRING> DEFAULTS = {
+        {"plugin:hyprexpo:overview_mode", HyprexpoConfig::OVERVIEW_MODE_DEFAULT},
         {"plugin:hyprexpo:workspace_method", HyprexpoConfig::WORKSPACE_METHOD_DEFAULT},
         {"plugin:hyprexpo:border_color", HyprexpoConfig::BORDER_COLOR_DEFAULT},
         {"plugin:hyprexpo:border_color_current", HyprexpoConfig::BORDER_COLOR_CURRENT_DEFAULT},

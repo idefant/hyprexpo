@@ -1,6 +1,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 
@@ -60,6 +61,31 @@ class TargetContractTests(unittest.TestCase):
         del metadata["locks"]["nodes"]["nixpkgs"]["locked"]["narHash"]
         with self.assertRaises(ValueError):
             ci.verify_lock(metadata, rev)
+
+    def test_docs_and_unrelated_workflows_do_not_require_a_nix_build(self):
+        self.assertFalse(ci.needs_build({"README.md", "docs/guides/runtime-smoke.md"}))
+        self.assertFalse(ci.needs_build({".github/workflows/cancel-closed-pr-workflows.yml"}))
+        self.assertFalse(ci.needs_build({"tests/OverviewSourceTests.cpp"}))
+
+    def test_build_inputs_require_the_nix_matrix(self):
+        for changed in (
+            {"src/Overview.cpp"},
+            {"flake.lock"},
+            {".github/workflows/compatibility.yml"},
+            {"scripts/ci-build.sh"},
+            {"scripts/hyprland-targets.json"},
+        ):
+            with self.subTest(changed=changed):
+                self.assertTrue(ci.needs_build(changed))
+
+    def test_build_needed_cli_classifies_a_changed_file_list(self):
+        command = ["python3", str(ROOT / "scripts/ci-targets.py"), "build-needed"]
+        docs = subprocess.run(command, input="README.md\ndocs/guides/runtime-smoke.md\n", text=True,
+                              capture_output=True, check=True)
+        source = subprocess.run(command, input="README.md\nsrc/Overview.cpp\n", text=True,
+                                capture_output=True, check=True)
+        self.assertEqual(docs.stdout, "false\n")
+        self.assertEqual(source.stdout, "true\n")
 
 
 if __name__ == "__main__":

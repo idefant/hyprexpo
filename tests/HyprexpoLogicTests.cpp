@@ -847,6 +847,11 @@ int main() {
     expect(numberKeyModeFromString("passthrough") == ENumberKeyMode::Passthrough, "passthrough number-key mode parses");
     expect(numberKeyModeFromString("invalid") == ENumberKeyMode::Workspace, "invalid number-key mode safely preserves the default");
     expect(HyprexpoConfig::DRAG_DROP_ENABLE_DEFAULT == 1, "drag and drop is enabled by default");
+    expect(std::string{HyprexpoConfig::OVERVIEW_MODE_DEFAULT} == "auto", "overview mode defaults to detection-based auto behavior");
+    expect(overviewModePreferenceFromString("auto") == EOverviewModePreference::Auto, "explicit auto overview mode parses");
+    expect(overviewModePreferenceFromString(" GRID ") == EOverviewModePreference::Grid, "grid overview mode is case-insensitive and trimmed");
+    expect(overviewModePreferenceFromString("") == EOverviewModePreference::Auto, "empty overview mode config falls back to auto");
+    expect(overviewModePreferenceFromString("scrolling") == EOverviewModePreference::Auto, "unrecognized overview mode values safely preserve auto behavior");
 
     const auto boundedGapFill = expandDynamicWorkspaceIDs({2, 4}, true, 64);
     expect(boundedGapFill.has_value(), "bounded fill_gaps range is accepted");
@@ -953,6 +958,35 @@ int main() {
     const char*       nullConfigString = nullptr;
     expect(decodeConfigString(&nullConfigString, false, "up") == "up", "a null inner pointer falls back to the default");
     expect(decodeConfigString(nullptr, false, "up") == "up", "an absent config value falls back to the default");
+
+    std::string rawOverviewStorage = "auto";
+    const char* rawOverviewMode = rawOverviewStorage.c_str();
+    std::string stdOverviewMode = "auto";
+    std::string* stdOverviewPtr = &stdOverviewMode;
+    const auto rawOverviewCopy = decodeConfigString(&rawOverviewMode, false, HyprexpoConfig::OVERVIEW_MODE_DEFAULT);
+    const auto stdOverviewCopy = decodeConfigString(&stdOverviewPtr, true, HyprexpoConfig::OVERVIEW_MODE_DEFAULT);
+    expect(overviewModePreferenceFromString(rawOverviewCopy) == EOverviewModePreference::Auto, "raw overview mode decodes to auto");
+    expect(overviewModePreferenceFromString(stdOverviewCopy) == EOverviewModePreference::Auto, "std::string overview mode decodes to auto");
+    for (const char* mode : {"grid", "auto"}) {
+        rawOverviewStorage = mode;
+        rawOverviewMode = rawOverviewStorage.c_str();
+        stdOverviewMode = mode;
+        const auto expected = stdOverviewMode == "grid" ? EOverviewModePreference::Grid : EOverviewModePreference::Auto;
+        expect(overviewModePreferenceFromString(decodeConfigString(&rawOverviewMode, false, HyprexpoConfig::OVERVIEW_MODE_DEFAULT)) == expected,
+               "fresh raw overview mode reads observe auto-to-grid-to-auto changes");
+        expect(overviewModePreferenceFromString(decodeConfigString(&stdOverviewPtr, true, HyprexpoConfig::OVERVIEW_MODE_DEFAULT)) == expected,
+               "fresh std::string overview mode reads observe auto-to-grid-to-auto changes");
+        expect(rawOverviewCopy == "auto" && stdOverviewCopy == "auto", "decoded overview modes own their strings after backend mutation");
+    }
+    rawOverviewMode = nullptr;
+    stdOverviewPtr = nullptr;
+    expect(overviewModePreferenceFromString(decodeConfigString(&rawOverviewMode, false, HyprexpoConfig::OVERVIEW_MODE_DEFAULT)) == EOverviewModePreference::Auto,
+           "a null raw overview mode pointer falls back to auto");
+    expect(overviewModePreferenceFromString(decodeConfigString(&stdOverviewPtr, true, HyprexpoConfig::OVERVIEW_MODE_DEFAULT)) == EOverviewModePreference::Auto,
+           "a null std::string overview mode pointer falls back to auto");
+    for (bool stringObject : {false, true})
+        expect(overviewModePreferenceFromString(decodeConfigString(nullptr, stringObject, HyprexpoConfig::OVERVIEW_MODE_DEFAULT)) == EOverviewModePreference::Auto,
+               "an absent overview mode reply falls back to auto for either representation");
 
     const auto gestureDisabled = evaluateGestureSync({.fingers = 0, .direction = "up", .directionValid = true});
     expect(!gestureDisabled.registerGesture, "gesture_fingers = 0 registers nothing");

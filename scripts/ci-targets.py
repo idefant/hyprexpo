@@ -9,6 +9,28 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 
+BUILD_INPUT_FILES = {
+    ".github/workflows/compatibility.yml",
+    "CMakeLists.txt",
+    "Makefile",
+    "VERSION",
+    "default.nix",
+    "flake.lock",
+    "flake.nix",
+    "hyprpm.toml",
+    "meson.build",
+    "scripts/ci-build.sh",
+    "scripts/ci-hyprland-cache.sh",
+    "scripts/ci-targets.py",
+    "scripts/hyprland-targets.json",
+    "scripts/upload-bunny-cache.py",
+}
+
+
+def needs_build(paths):
+    """Return whether changed paths can affect the Nix compatibility output."""
+    return any(path in BUILD_INPUT_FILES or path.startswith("src/") for path in paths)
+
 
 def targets(path=ROOT / "scripts/hyprland-targets.json"):
     data = json.loads(path.read_text())
@@ -90,6 +112,8 @@ def main():
     contract_command.add_argument("--head-repository", required=True)
     contract_command.add_argument("--head", required=True)
     contract_command.add_argument("--draft", choices=["true", "false"], default="false")
+    build_needed = commands.add_parser("build-needed")
+    build_needed.set_defaults(command="build-needed")
     args = parser.parse_args()
     if args.command == "matrix":
         print(json.dumps({"include": targets()[track_for_branch(args.branch)]}))
@@ -97,6 +121,8 @@ def main():
         verify_lock(json.loads(args.metadata.read_text()), args.rev)
     elif args.command == "contract":
         print(json.dumps(contract(args.repository, args.number, args.base, args.head_repository, args.head, args.draft == "true")))
+    elif args.command == "build-needed":
+        print(str(needs_build(path.strip() for path in sys.stdin if path.strip())).lower())
     else:
         metadata = json.loads(args.metadata.read_text())
         locks = metadata["locks"]

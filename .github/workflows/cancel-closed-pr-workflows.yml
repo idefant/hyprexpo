@@ -14,6 +14,9 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
     steps:
       - name: Cancel active runs for this pull request
         shell: bash
@@ -21,11 +24,12 @@ jobs:
           set -euo pipefail
           for status in queued in_progress; do
             runs=$(gh api --paginate \
-              "repos/${GITHUB_REPOSITORY}/actions/runs?event=pull_request&status=${status}&per_page=100" \
+              "repos/${GITHUB_REPOSITORY}/actions/runs?event=pull_request&status=${status}&head_sha=${PR_HEAD_SHA}&per_page=100" \
               --jq '
                 .workflow_runs[]
                 | select(.id != (env.GITHUB_RUN_ID | tonumber))
-                | select(any(.pull_requests[]?; .number == (env.PR_NUMBER | tonumber)))
+                | select(.head_branch == env.PR_HEAD_REF)
+                | select(.head_repository.full_name == env.PR_HEAD_REPOSITORY)
                 | .id
               ')
             while IFS= read -r run_id; do

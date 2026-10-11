@@ -33,6 +33,11 @@ enum class ENumberKeyMode {
     Passthrough,
 };
 
+enum class EOverviewModePreference {
+    Auto,
+    Grid,
+};
+
 struct SWorkspaceMethodSpec {
     bool                 valid = false;
     EWorkspaceMethodMode mode  = EWorkspaceMethodMode::Center;
@@ -205,6 +210,7 @@ std::optional<SWorkspaceIDRange> workspaceRuleIDRange(const std::string& workspa
 int                      tileIndexFromPoint(double x, double y, double width, double height, int sideLength);
 int                      numberKeyToVisibleIndex(int number);
 ENumberKeyMode           numberKeyModeFromString(const std::string& mode);
+EOverviewModePreference  overviewModePreferenceFromString(const std::string& mode);
 bool                     shouldAbortOverviewCloseForWorkspaceMove(bool windowPinned, bool movedOnOverviewMonitor);
 SDropIntentGeometry      computeDropIntentGeometry(const SDropIntentInput& input);
 

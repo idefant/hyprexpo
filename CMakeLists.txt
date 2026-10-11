@@ -85,6 +85,8 @@ add_executable(OverviewSourceTests
     tests/OverviewSourceTests.cpp
 )
 add_test(NAME OverviewSourceTests COMMAND OverviewSourceTests)
+add_executable(PreviewFramebufferTests tests/PreviewFramebufferTests.cpp)
+add_test(NAME PreviewFramebufferTests COMMAND PreviewFramebufferTests)
 add_executable(RegistryTeardownTests tests/RegistryTeardownTests.cpp)
 add_test(NAME RegistryTeardownTests COMMAND RegistryTeardownTests)
 add_executable(ScrollingInputOracle

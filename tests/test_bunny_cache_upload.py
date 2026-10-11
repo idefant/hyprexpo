@@ -59,6 +59,16 @@ class UploadTests(unittest.TestCase):
         cache.publish(self.root, self.env, hit)
         self.assertFalse(any('/nar/' in url for _, url in self.calls))
 
+    def test_unauthorized_head_retries_the_payload_upload(self):
+        def unauthorized_head(request, timeout):
+            self.calls.append((request.method, request.full_url))
+            if request.method == 'HEAD':
+                raise HTTPError(request.full_url, 401, 'HEAD unavailable', {}, None)
+            return self.opener(request, timeout)
+
+        cache.publish(self.root, self.env, unauthorized_head)
+        self.assertTrue(any(method == 'PUT' and '/nar/' in url for method, url in self.calls))
+
     def test_invalid_configuration_never_connects(self):
         for key, value in [('BUNNY_CACHE_STORAGE_ZONE', ''), ('BUNNY_CACHE_STORAGE_PASSWORD', ''),
                            ('BUNNY_CACHE_STORAGE_ENDPOINT', 'http://example.com'),
