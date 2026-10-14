@@ -27,6 +27,8 @@ struct SWindowCaptureResult {
     bool                     completed = false;
 };
 
+bool isCapturingWorkspacePreview();
+
 bool captureWorkspacePreview(const SWorkspaceCaptureRequest& request, SP<Render::IFramebuffer>& framebuffer);
 
 SWindowCaptureResult captureWindowPreview(const WP<Layout::ITarget>& target, const PHLWINDOWREF& window, const PHLMONITORREF& monitor, const Vector2D& pixelSize);

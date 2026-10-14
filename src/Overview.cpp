@@ -130,6 +130,7 @@ static Config::INTEGER intDefault(const std::string& name) {
     static const std::map<std::string, Config::INTEGER> DEFAULTS = {
         {"plugin:hyprexpo:columns", HyprexpoConfig::COLUMNS_DEFAULT},
         {"plugin:hyprexpo:rows", HyprexpoConfig::ROWS_DEFAULT},
+        {"plugin:hyprexpo:cross_monitor", HyprexpoConfig::CROSS_MONITOR_DEFAULT},
         {"plugin:hyprexpo:gaps_in", HyprexpoConfig::GAPS_IN_DEFAULT},
         {"plugin:hyprexpo:bg_col", HyprexpoConfig::BG_COL_DEFAULT},
         {"plugin:hyprexpo:gesture_distance", HyprexpoConfig::GESTURE_DISTANCE_DEFAULT},
@@ -1114,6 +1115,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
     const int64_t maxWorkspace = std::max<Hyprlang::INT>(0, **PMAXWS);
     std::string   selector     = skipEmpty ? "m" : "r";
     emptyTilesSelectable = skipEmpty;
+    crossMonitor = HyprlandAPI::intValue("plugin:hyprexpo:cross_monitor") && !methodCenter && !skipEmpty && !dynamicGrid && methodStartID > 0;
 
     if (!methodCenter && !skipEmpty && maxWorkspace <= 0 && startedOn) {
         const int columns = Hyprexpo::gridColumnsToIncludeWorkspace(gridShape.cols, methodStartID, (int)startedOn->m_id,
@@ -1123,7 +1125,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
 
     images.resize(gridShape.cols * gridShape.rows);
 
-    const bool anchorSelector = !methodCenter || (!skipEmpty && maxWorkspace > 0 && methodStartID != startedOn->m_id);
+    const bool anchorSelector = !crossMonitor && (!methodCenter || (!skipEmpty && maxWorkspace > 0 && methodStartID != startedOn->m_id));
     if (anchorSelector) {
         PHLWORKSPACE PWORKSPACESTART;
         for (const auto& workspace : State::workspaceState()->workspacesCopy()) {
@@ -1139,7 +1141,11 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
         pMonitor->m_activeWorkspace = PWORKSPACESTART;
     }
 
-    if (methodCenter) {
+    if (crossMonitor) {
+        const auto ids = Hyprexpo::absoluteWorkspaceIDs(methodStartID, images.size(), maxWorkspace);
+        for (size_t i = 0; i < images.size(); ++i)
+            images[i].workspaceID = ids[i];
+    } else if (methodCenter) {
         int currentID = methodStartID;
         int firstID   = currentID;
 

@@ -108,8 +108,24 @@ plugin {
 | `plugin:hyprexpo:cancel_key` | string | comma-separated key names that close overview without selecting; `none` or `off` disables | `escape` |
 | `plugin:hyprexpo:show_cursor` | bool int | keep the cursor visible while overview is open; set `0` for old hidden-cursor behavior | `1` |
 | `plugin:hyprexpo:show_pinned_windows` | bool int | render pinned/PiP windows in workspace preview thumbnails; default `0` hides them from previews only | `0` |
+| `plugin:hyprexpo:cross_monitor` | bool int | include foreign workspaces in fixed first grids; see below | `0` |
 | `plugin:hyprexpo:scrolling_thumbnail_budget` | int | scrolling thumbnail budget multiplier `m`, clamped to `1..16`; total capture pixels are bounded by `m * W * H` for monitor size `W x H` | `4` |
 | `plugin:hyprexpo:scrolling_input_debug` | bool int | enable deterministic input and loaded native mutation acceptance dispatchers; leave disabled outside disposable testing | `0` |
+
+### Cross-monitor workspace grid
+
+`cross_monitor = 1` makes a fixed `workspace_method = first 1` grid include
+consecutive absolute workspace IDs, including those owned by other monitors.
+It defaults to `0`, which keeps the existing monitor-local ordering. Use
+`skip_empty = 0`, `dynamic_grid = 0`, and a positive first workspace ID;
+other workspace methods keep their existing behavior. `max_workspace` still
+caps the emitted IDs. For scrolling layouts, set `overview_mode = grid`.
+
+Foreign tiles are captured on their owning monitor. Selecting one closes all
+overviews immediately, without zooming that tile across the overview monitor,
+then focuses its workspace and moves the cursor to that monitor. Workspace
+ownership stays unchanged. Window dragging and index-based window moves are
+disabled in cross-monitor grids. Existing per-monitor grids retain dragging.
 
 ### Rectangular fixed grids
 

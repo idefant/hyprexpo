@@ -8,6 +8,9 @@
 
 namespace Hyprexpo {
 
+// Fixed first grids may explicitly include IDs owned by other monitors; -1 is padding.
+std::vector<int64_t> absoluteWorkspaceIDs(int64_t first, size_t count, int64_t cap);
+
 struct SColorRGBA {
     float r = 0.F;
     float g = 0.F;

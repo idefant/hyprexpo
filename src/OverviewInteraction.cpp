@@ -12,6 +12,7 @@
 #include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/state/WorkspaceState.hpp>
 #include <hyprland/src/config/shared/actions/ConfigActions.hpp>
+#include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -145,7 +146,8 @@ Vector2D COverview::tilePointToWorkspacePoint(int id, const Vector2D& localPoint
 }
 
 PHLWINDOW COverview::windowAtTilePoint(int id, const Vector2D& localPoint) const {
-    if (!isTileValid(id))
+    // shortcut: cross-monitor grids are selection-only until drag coordinates use each tile owner.
+    if (crossMonitor || !isTileValid(id))
         return nullptr;
 
     PHLWORKSPACE WORKSPACE;
@@ -286,8 +288,10 @@ PHLWORKSPACE COverview::ensureWorkspaceForTile(int id) {
         }
     }
 
-    if (!workspace)
-        workspace = State::workspaceState()->create(image.workspaceID, MON->m_id, std::to_string(image.workspaceID), false);
+    if (!workspace) {
+        const auto bound = crossMonitor ? Config::workspaceRuleMgr()->getBoundMonitorForWS(std::to_string(image.workspaceID)) : PHLMONITOR{};
+        workspace = State::workspaceState()->create(image.workspaceID, bound ? bound->m_id : MON->m_id, std::to_string(image.workspaceID), false);
+    }
 
     image.pWorkspace = workspace;
     return workspace;
@@ -309,7 +313,7 @@ bool COverview::finishWindowDrag() {
         const int   SOURCE    = TRANSITION.drop->sourceTileIndex;
         const int   TARGET    = TRANSITION.drop->targetTileIndex;
 
-        if (SOURCEOV && TARGETOV && TARGETMON && SOURCEOV->isTileValid(SOURCE) && TARGETOV->isTileValid(TARGET)) {
+        if (SOURCEOV && TARGETOV && !SOURCEOV->crossMonitor && !TARGETOV->crossMonitor && TARGETMON && SOURCEOV->isTileValid(SOURCE) && TARGETOV->isTileValid(TARGET)) {
             PHLWORKSPACE SOURCEWS = SOURCEOV->images[SOURCE].pWorkspace;
             if (!SOURCEWS) {
                 for (const auto& workspace : State::workspaceState()->workspacesCopy()) {
@@ -340,7 +344,7 @@ bool COverview::finishWindowDrag() {
 }
 
 bool COverview::moveWindowBetweenVisibleIndices(size_t sourceIndex, size_t targetIndex, const PHLWINDOW& requestedWindow) {
-    if (closing)
+    if (closing || crossMonitor)
         return false;
 
     const int SOURCE = tileForVisibleIndex(sourceIndex);

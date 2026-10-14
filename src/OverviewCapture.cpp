@@ -36,6 +36,7 @@ static_assert(WL_OUTPUT_TRANSFORM_FLIPPED == 4);
 static_assert(WL_OUTPUT_TRANSFORM_FLIPPED_90 == 5);
 static_assert(WL_OUTPUT_TRANSFORM_FLIPPED_180 == 6);
 static_assert(WL_OUTPUT_TRANSFORM_FLIPPED_270 == 7);
+int g_workspaceCaptureDepth = 0;
 
 std::atomic<uint64_t> g_budgetGeneration = 1;
 std::mutex            g_budgetLogMutex;
@@ -166,7 +167,21 @@ void notifyOverviewCaptureConfigReload() {
     g_budgetGeneration.fetch_add(1, std::memory_order_relaxed);
 }
 
-bool captureWorkspacePreview(const SWorkspaceCaptureRequest& request, SP<Render::IFramebuffer>& framebuffer) {
+bool isCapturingWorkspacePreview() {
+    return g_workspaceCaptureDepth > 0;
+}
+
+bool captureWorkspacePreview(const SWorkspaceCaptureRequest& original, SP<Render::IFramebuffer>& framebuffer) {
+    auto request = original;
+    if (const auto owner = request.workspace ? request.workspace->m_monitor.lock() : PHLMONITOR{}; owner && owner != request.monitor) {
+        request.monitor = owner;
+        request.startedOn = owner->m_activeWorkspace;
+        request.box = {{0, 0}, owner->m_pixelSize};
+        request.animateStartedOnRestore = false;
+        request.blockSurfaceFeedback = true;
+    }
+    ++g_workspaceCaptureDepth;
+    Hyprutils::Utils::CScopeGuard captureGuard{[] { --g_workspaceCaptureDepth; }};
     if (!request.monitor || !request.monitor->m_output || !request.startedOn || request.box.w <= 0 || request.box.h <= 0)
         return false;
 

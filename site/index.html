@@ -8,63 +8,187 @@
       name="description"
       content="HyprExpo is a maintained expose-style workspace overview plugin for Hyprland with keyboard selection and drag-drop window movement."
     />
-    <meta name="theme-color" content="#0b0d10" />
-    <meta property="og:title" content="HyprExpo" />
+    <meta name="theme-color" content="#121014" />
+    <meta
+      property="og:title"
+      content="HyprExpo — Workspace Overview for Hyprland"
+    />
     <meta
       property="og:description"
-      content="A maintained expose-style workspace overview plugin for Hyprland with keyboard selection and drag-drop window movement."
+      content="Your workspaces, all in view. An Exposé-style overview with keyboard navigation, drag-and-drop, and Lua gestures."
     />
     <meta property="og:type" content="website" />
     <link rel="icon" type="image/svg+xml" href="./hyprexpo-mark.svg" />
   </head>
   <body>
-    <main class="page-shell" aria-labelledby="page-title">
-      <video
-        class="hero-video"
-        src="https://github.com/user-attachments/assets/861baa26-46b6-4fa8-8d37-65cbb9ecbed4"
-        autoplay
-        muted
-        loop
-        playsinline
-        preload="metadata"
-      ></video>
-      <div class="hero-shade" aria-hidden="true"></div>
-      <div class="hero-grid" aria-hidden="true">
-        <span></span>
-        <span></span>
-        <span></span>
-        <span></span>
-        <span></span>
-        <span></span>
-      </div>
-      <section class="intro-panel">
-        <h1 id="page-title">HyprExpo</h1>
-        <p class="subline">
-          A maintained expose-style workspace overview with keyboard selection,
-          drag-drop window movement, labels, gaps, borders, multi-monitor
-          placement, and Lua gestures.
-        </p>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <main id="main" class="page-shell">
+      <header class="hero">
+        <p class="eyebrow">your workspaces, all in view</p>
+        <h1>hyprexpo</h1>
+        <p class="tagline">an Exposé-style workspace overview for Hyprland</p>
+      </header>
 
-        <div class="install-box" id="install">
-          <div>
-            <p class="install-label">Install with hyprpm</p>
-            <code>hyprpm add https://github.com/sandwichfarm/hyprexpo</code>
-          </div>
+      <figure class="demo">
+        <div class="demo-frame">
+          <video
+            class="hero-video"
+            src="https://github.com/user-attachments/assets/861baa26-46b6-4fa8-8d37-65cbb9ecbed4"
+            poster="./hyprexpo-demo.jpg"
+            controls
+            muted
+            loop
+            playsinline
+            preload="none"
+            aria-label="HyprExpo workspace overview demonstration"
+            aria-describedby="demo-caption"
+          >
+            <a
+              href="https://github.com/user-attachments/assets/861baa26-46b6-4fa8-8d37-65cbb9ecbed4"
+              >Watch the workspace overview demonstration</a
+            >
+          </video>
+        </div>
+        <figcaption id="demo-caption">
+          See the bigger picture. <span>Move right where you need to be.</span>
+        </figcaption>
+        <p class="video-fallback" hidden>
+          Can’t load the demo?
+          <a
+            href="https://github.com/user-attachments/assets/861baa26-46b6-4fa8-8d37-65cbb9ecbed4"
+            >Watch the recording on GitHub ↗</a
+          >
+        </p>
+      </figure>
+
+      <section class="install" aria-label="Install with hyprpm">
+        <div class="command">
+          <span class="prompt" aria-hidden="true">$</span>
+          <code id="install-command"
+            >hyprpm add https://github.com/sandwichfarm/hyprexpo</code
+          >
           <button
-            class="copy-command"
             type="button"
-            data-copy="hyprpm add https://github.com/sandwichfarm/hyprexpo"
+            class="copy-command"
+            data-copy
+            aria-label="Copy install command"
           >
             Copy
           </button>
         </div>
-
-        <nav class="link-row" aria-label="Project links">
-          <a href="https://github.com/sandwichfarm/hyprexpo">GitHub</a>
-          <a href="https://www.reddit.com/r/hyprland/comments/1o30dsg/hyprexpoplus_outer_gaps_keyboard_navigation_and/">Reddit</a>
-          <a href="./docs/">Docs</a>
-        </nav>
+        <p class="install-help">
+          Install with hyprpm ·
+          <a href="./docs/getting-started/installation/"
+            >Enable and configure ↗</a
+          >
+        </p>
+        <p class="copy-status" role="status" aria-live="polite"></p>
       </section>
+
+      <nav class="project-links" aria-label="Project links">
+        <a href="https://github.com/sandwichfarm/hyprexpo">↗ github</a>
+        <a href="./docs/">▤ documentation</a>
+        <a
+          href="https://www.reddit.com/r/hyprland/comments/1o30dsg/hyprexpoplus_outer_gaps_keyboard_navigation_and/"
+          >↗ announcement post</a
+        >
+      </nav>
+
+      <section class="compatibility" aria-labelledby="compatibility-title">
+        <h2 id="compatibility-title">Built for Hyprland</h2>
+        <div class="compat-grid">
+          <div>
+            <span class="status">Native plugin</span
+            ><strong>Workspace overview</strong>
+          </div>
+          <div>
+            <span class="status">Your controls</span
+            ><strong>Keys · pointer · gestures</strong>
+          </div>
+          <div>
+            <span class="status">Your configuration</span
+            ><strong>Hyprlang + Lua</strong>
+          </div>
+        </div>
+        <p class="fine">
+          Build against your compositor’s exact revision.
+          <a href="./docs/reference/compatibility/">Check compatibility ↗</a>
+        </p>
+      </section>
+
+      <section class="features" aria-labelledby="features-title">
+        <h2 id="features-title">A place for every workspace.</h2>
+        <div class="feature-grid">
+          <article>
+            <span class="icon" aria-hidden="true">▦</span>
+            <h3>See it all</h3>
+            <p>
+              Square, rectangular, or dynamic grids bring your workspaces
+              together in one overview.
+            </p>
+          </article>
+          <article>
+            <span class="icon" aria-hidden="true">⌘</span>
+            <h3>Stay on the keys</h3>
+            <p>
+              Bind directional navigation, jump to a workspace, and select or
+              cancel without reaching for the mouse.
+            </p>
+          </article>
+          <article>
+            <span class="icon" aria-hidden="true">↗</span>
+            <h3>Drag it into place</h3>
+            <p>
+              Move windows between workspaces by dragging their previews.
+              Organize your desktop in context.
+            </p>
+          </article>
+          <article>
+            <span class="icon" aria-hidden="true">↔</span>
+            <h3>Room to scroll</h3>
+            <p>
+              Inspect individual windows in scrolling layouts, pan through the
+              overview, and bring offscreen windows into view.
+            </p>
+          </article>
+          <article>
+            <span class="icon" aria-hidden="true">▱</span>
+            <h3>Across your screens</h3>
+            <p>
+              Choose which workspaces appear on each monitor and navigate with
+              Lua-configured touchpad gestures.
+            </p>
+          </article>
+          <article>
+            <span class="icon" aria-hidden="true">{ }</span>
+            <h3>Make it your own</h3>
+            <p>
+              Tune labels, gaps, rounded tiles, and borders to make the overview
+              feel at home on your desktop.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="start" aria-labelledby="start-title">
+        <h2 id="start-title">Find your workspace.</h2>
+        <p>Set up your bindings. Put the whole desktop within reach.</p>
+        <a class="button" href="./docs/getting-started/installation/"
+          >Get started <span aria-hidden="true">→</span></a
+        >
+      </section>
+
+      <footer>
+        <span
+          >hyprexpo · by
+          <a href="https://github.com/sandwichfarm">sandwichfarm</a></span
+        >
+        <nav aria-label="Related projects">
+          <span>also try</span>
+          <a href="https://hyprlax.com/">hyprlax ↗</a>
+          <a href="https://hyprflow.fyi/">hyprflow ↗</a>
+        </nav>
+      </footer>
     </main>
     <script type="module" src="./src/main.js"></script>
   </body>

@@ -16,6 +16,8 @@
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 #include <hyprland/src/state/WorkspaceState.hpp>
+#include <hyprland/src/state/MonitorState.hpp>
+#include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
 #undef private
 #undef protected
 #include <algorithm>
@@ -147,6 +149,37 @@ void COverview::close(bool switchToSelection) {
 
     const int   SAFEID = std::clamp(ID, 0, (int)images.size() - 1);
     const auto& TILE   = images[SAFEID];
+
+    const auto SELECTED = switchToSelection && isTileValid(SAFEID) ? ensureWorkspaceForTile(SAFEID) : PHLWORKSPACE{};
+    const auto TARGET = SELECTED ? SELECTED->m_monitor.lock() : PHLMONITOR{};
+    if (TARGET && TARGET != MON) {
+        closing = true;
+        const auto key = overviewMonitorKey(MON);
+        const auto generation = m_sessionGeneration;
+        // Leave the input/animation stack before destroying sessions or changing focus.
+        g_pEventLoopManager->doLater([key, generation, SELECTED] {
+            if (!overviewForSession(key, generation))
+                return;
+            destroyAllOverviews();
+            const auto TARGET = SELECTED->m_monitor.lock();
+            if (!TARGET || std::ranges::find(State::monitorState()->monitors(), TARGET) == State::monitorState()->monitors().end())
+                return;
+            TARGET->setSpecialWorkspace(0);
+            const auto CHANGE = Config::Actions::changeWorkspace(SELECTED);
+            if (!CHANGE) {
+                Log::logger->log(Log::ERR, "[hyprexpo] failed to select foreign workspace: {}", CHANGE.error().message);
+                return;
+            }
+            const auto MOVE = Config::Actions::moveCursor(TARGET->m_position + TARGET->m_size / 2.0);
+            if (!MOVE)
+                Log::logger->log(Log::ERR, "[hyprexpo] failed to move cursor: {}", MOVE.error().message);
+            for (const auto& monitor : State::monitorState()->monitors()) {
+                g_pHyprRenderer->damageMonitor(monitor);
+                monitor->scheduleFrame();
+            }
+        });
+        return;
+    }
 
     const auto targetSize = zoomSizeForCurrentGrid(MON->m_size);
     *size = targetSize;

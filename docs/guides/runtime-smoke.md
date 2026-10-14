@@ -84,3 +84,49 @@ Nested test binds:
 ::: warning
 The public site and docs should not claim full release readiness until this runtime smoke gate has been completed for the intended release artifact.
 :::
+
+## Cross-monitor fixed-grid acceptance
+
+Launch an isolated two-output session with
+`HYPREXPO_DEV_OUTPUTS=2 ./scripts/run-nested.sh`. Address its instance explicitly
+with `hyprctl -i <nested-instance>` for every command below. Never load a test
+artifact in the desktop session.
+
+1. Set `cross_monitor = 1`, `workspace_method = first 1`, `columns = 3`,
+   `rows = 3`, `max_workspace = 9`, `skip_empty = 0`, `dynamic_grid = 0`, and
+   `overview_mode = grid`. Bind workspaces 1–5 to WAYLAND-1 and 6–9 to WAYLAND-2.
+   Put visibly different windows on workspace 1 and workspace 6.
+2. Open `hyprexpo:expo on` on WAYLAND-1. Confirm tile 1 shows the local window
+   and tile 6 shows the foreign window, with neither workspace moving outputs.
+3. Set `animation = windowsMove,1,20,default`, `cursor:no_warps = 1`, and
+   `input:follow_mouse = 1`. Select tile 6 with `hyprexpo:kb_selectn 6`.
+   WAYLAND-1 must return directly to its local workspace without a foreign-tile
+   zoom; focus and cursor must move to WAYLAND-2. Check `monitors -j`,
+   `workspaces -j`, and `cursorpos -j` immediately and after pointer movement.
+4. Repeat using `hyprexpo:expo on all`. Captures must still show windows rather
+   than nested overviews, and foreign selection must remove all sessions.
+5. Check local selection and cancel. Disable `cross_monitor`, reopen, and
+   confirm the existing per-monitor enumeration is unchanged. Re-enable it and
+   select an uncreated workspace bound to WAYLAND-2; it must be created there.
+6. Confirm window dragging and `hyprexpo:move_window` are refused in the opt-in
+   grid; close/reopen/reload/unload must leave the compositor responsive and
+   `configerrors` empty. Test other monitor scales/transforms separately.
+
+### Deferred cross-monitor selection regressions
+
+In the disposable two-output grid fixture above, set
+`binds:hide_special_on_workspace_change = false`, leave a populated special
+workspace open on WAYLAND-2, and select workspace 6 from WAYLAND-1. Check that
+WAYLAND-2 has `specialWorkspace.id = 0`, workspace 6 is active, and focus/cursor
+land there. Cancel and local selection must leave the foreign special open.
+
+Exercise a workspace ownership change before the idle callback with one IPC
+batch against the nested instance:
+
+```sh
+hyprctl -i <nested-instance> --batch 'dispatch hyprexpo:kb_selectn 6 ; dispatch moveworkspacetomonitor 6 WAYLAND-1'
+```
+
+The overview must already be open on WAYLAND-1 with workspace 6 on WAYLAND-2.
+After the batch, workspace 6, focus and cursor must all be on WAYLAND-1; the
+callback must not clear a special workspace or warp to the previous owner.

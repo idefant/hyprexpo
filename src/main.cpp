@@ -30,7 +30,7 @@ typedef void (*origAddDamageB)(void*, const pixman_region32_t*);
 static void hkRenderWorkspace(void* thisptr, PHLMONITOR pMonitor, PHLWORKSPACE pWorkspace, const Time::steady_tp& now, const CBox& geometry) {
     auto* const OV = overviewForMonitor(pMonitor);
 
-    if (!OV || isRenderingOverview() || OV->blocksOverviewRendering() || !OV->shouldRenderOverviewForMonitor(pMonitor))
+    if (!OV || isRenderingOverview() || Hyprexpo::Capture::isCapturingWorkspacePreview() || OV->blocksOverviewRendering() || !OV->shouldRenderOverviewForMonitor(pMonitor))
         ((origRenderWorkspace)(g_pRenderWorkspaceHook->m_original))(thisptr, pMonitor, pWorkspace, now, geometry);
     else
         OV->render();
@@ -42,7 +42,7 @@ static void hkAddDamageA(void* thisptr, const CBox& box) {
 
     auto* const OV = overviewForMonitor(PMONITORSP);
 
-    if (!OV || !OV->shouldRenderOverviewForMonitor(PMONITORSP) || OV->blocksDamageReporting()) {
+    if (!OV || Hyprexpo::Capture::isCapturingWorkspacePreview() || !OV->shouldRenderOverviewForMonitor(PMONITORSP) || OV->blocksDamageReporting()) {
         ((origAddDamageA)g_pAddDamageHookA->m_original)(thisptr, box);
         return;
     }
@@ -56,7 +56,7 @@ static void hkAddDamageB(void* thisptr, const pixman_region32_t* rg) {
 
     auto* const OV = overviewForMonitor(PMONITORSP);
 
-    if (!OV || !OV->shouldRenderOverviewForMonitor(PMONITORSP) || OV->blocksDamageReporting()) {
+    if (!OV || Hyprexpo::Capture::isCapturingWorkspacePreview() || !OV->shouldRenderOverviewForMonitor(PMONITORSP) || OV->blocksDamageReporting()) {
         ((origAddDamageB)g_pAddDamageHookB->m_original)(thisptr, rg);
         return;
     }
