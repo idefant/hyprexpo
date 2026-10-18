@@ -217,6 +217,8 @@ int main() {
 
     const auto workspaceMoveHandler = extractFunction(interactionSource, "void COverview::onWindowMoveToWorkspace(");
     expect(!workspaceMoveHandler.empty(), "workspace-move close handler exists");
+    expectOrder(workspaceMoveHandler, "if (!closing && window && !blockOverviewRendering)", "queueRedrawID(i)", "explicit moves also invalidate inactive workspace tiles");
+    expectAbsent(workspaceMoveHandler, "redrawID(", "workspace move notifications defer captures until pre-render");
     const auto monitorRelevancePos = workspaceMoveHandler.find("const bool movedOnOverviewMonitor");
     const auto classifierPos       = workspaceMoveHandler.find("Hyprexpo::shouldAbortOverviewCloseForWorkspaceMove(window->m_pinned, movedOnOverviewMonitor)");
     const auto abortFlagPos        = workspaceMoveHandler.find("externalWorkspaceMoveDuringClose = true;");
@@ -459,7 +461,16 @@ int main() {
     expectAbsent(deferredSelection, "SELECTED, TARGET", "deferred selection never captures a stale owner");
     expectContains(mainSource, "Hyprexpo::Capture::isCapturingWorkspacePreview()", "owner captures bypass every overview session");
     const auto foreignDamage = extractFunction(renderSource, "void COverview::onSourceMonitorDamage(");
-    expectContains(foreignDamage, "image.pWorkspace->m_monitor == source", "foreign damage queues only tiles owned by its source");
+    expectOrder(foreignDamage, "Hyprexpo::shouldRefreshSourceWorkspace(workspace->m_monitor == source", "queueRedrawID(i)", "foreign damage uses the tested source workspace policy");
+    expectContains(foreignDamage, "workspace->m_visible || workspace->m_forceRendering", "outgoing and forced-visible workspaces remain live");
+    expectContains(foreignDamage, "workspace->m_alpha->isBeingAnimated() || workspace->m_renderOffset->isBeingAnimated()", "workspace transitions remain live");
+    expectContains(foreignDamage, "monitorHasPinnedPreviewWindows(source)", "pinned sharing is scoped to the source monitor");
+    const auto redraw = extractFunction(renderSource, "void COverview::redrawID(");
+    for (const auto* capture : {&overviewConstructor, &redraw}) {
+        expectContains(*capture, "if (Hyprexpo::Capture::captureWorkspacePreview(", "capture state changes only after success");
+        expectContains(*capture, "image.wasActiveOnSource = owner && PWORKSPACE == owner->m_activeWorkspace", "captures retain active source state for special overlay removal");
+        expectContains(*capture, "image.hadPinnedWindows = monitorHasPinnedPreviewWindows(owner)", "captures retain pinned state for its final removal");
+    }
     expectAbsent(foreignDamage, "redrawID(", "damage callbacks defer framebuffer capture");
     const auto preRender = extractFunction(renderSource, "void COverview::onPreRender()");
     expectContains(preRender, "flushQueuedRedraws(false)", "pre-render flush does not start another frame");

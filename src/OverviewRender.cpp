@@ -70,14 +70,18 @@ void COverview::redrawID(int id, bool forcelowres) {
         }
     }
     image.pWorkspace = PWORKSPACE;
-    Hyprexpo::Capture::captureWorkspacePreview({
+    if (Hyprexpo::Capture::captureWorkspacePreview({
         .monitor                   = MON,
         .workspace                 = PWORKSPACE,
         .startedOn                 = startedOn,
         .box                       = monbox,
         .showPinnedWindows         = showPinnedWindowsInPreview(),
         .animateStartedOnRestore   = true,
-    }, image.fb);
+    }, image.fb)) {
+        const auto owner = PWORKSPACE ? PWORKSPACE->m_monitor.lock() : PHLMONITOR{};
+        image.wasActiveOnSource = owner && PWORKSPACE == owner->m_activeWorkspace;
+        image.hadPinnedWindows = monitorHasPinnedPreviewWindows(owner);
+    }
 
     blockOverviewRendering = false;
 }
@@ -129,6 +133,7 @@ void COverview::onSourceMonitorDamage(const PHLMONITOR& source) {
         return;
 
     const bool hadQueuedRedraws = !queuedRedrawIDs.empty();
+    const bool hasPinnedWindows = monitorHasPinnedPreviewWindows(source);
     for (size_t i = 0; i < images.size(); ++i) {
         auto& image = images[i];
         if (!image.pWorkspace) {
@@ -139,7 +144,14 @@ void COverview::onSourceMonitorDamage(const PHLMONITOR& source) {
                 }
             }
         }
-        if (image.pWorkspace && image.pWorkspace->m_monitor == source)
+        const auto& workspace = image.pWorkspace;
+        if (!workspace)
+            continue;
+        const bool visible = workspace == source->m_activeWorkspace || workspace->m_visible || workspace->m_forceRendering ||
+            workspace->m_alpha->isBeingAnimated() || workspace->m_renderOffset->isBeingAnimated();
+        // Refresh the old active tile once to remove its special overlay after a switch.
+        // shortcut: pinned damage has no window identity; refine this when scoped damage is available.
+        if (Hyprexpo::shouldRefreshSourceWorkspace(workspace->m_monitor == source, visible, image.wasActiveOnSource, hasPinnedWindows, image.hadPinnedWindows))
             queueRedrawID(i);
     }
     if (hadQueuedRedraws || queuedRedrawIDs.empty())

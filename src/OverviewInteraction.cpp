@@ -655,6 +655,18 @@ void COverview::beginCancelSwipe() {
 }
 
 void COverview::onWindowMoveToWorkspace(const PHLWINDOW& window, const PHLWORKSPACE& workspace) {
+    if (!closing && window && !blockOverviewRendering) {
+        // Refresh both ends of a move even when the event exposes only the new workspace.
+        for (size_t i = 0; i < images.size(); ++i)
+            queueRedrawID(i);
+        if (!queuedRedrawIDs.empty()) {
+            damage();
+            if (const auto monitor = pMonitor.lock())
+                monitor->scheduleFrame();
+        }
+        return;
+    }
+
     if (!closing || externalWorkspaceMoveDuringClose || !window)
         return;
 

@@ -94,6 +94,8 @@ class COverview final : public IOverviewSession {
         SP<Render::IFramebuffer> fb;
         int64_t                  workspaceID = -1;
         PHLWORKSPACE             pWorkspace;
+        bool                     wasActiveOnSource = false;
+        bool                     hadPinnedWindows = false;
         CBox                     box;
         // Label textures per state for customization
         SP<Render::ITexture>     labelTexDefault;

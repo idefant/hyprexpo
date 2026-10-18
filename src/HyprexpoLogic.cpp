@@ -27,6 +27,10 @@ std::vector<int64_t> absoluteWorkspaceIDs(int64_t first, size_t count, int64_t c
     return ids;
 }
 
+bool shouldRefreshSourceWorkspace(bool belongsToSource, bool visible, bool wasActive, bool hasPinned, bool hadPinned) {
+    return belongsToSource && (visible || wasActive || hasPinned || hadPinned);
+}
+
 std::string trimString(std::string value) {
     while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front())))
         value.erase(value.begin());
