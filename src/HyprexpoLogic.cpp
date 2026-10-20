@@ -21,6 +21,7 @@ bool workspacePreviewNeedsHalfTurn(int outputTransform) {
         default:
             return false;
     }
+}
   
 std::vector<int64_t> absoluteWorkspaceIDs(int64_t first, size_t count, int64_t cap) {
     std::vector<int64_t> ids(count, -1);
