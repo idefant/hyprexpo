@@ -2,6 +2,7 @@
 #define HyprlandAPI CompatHyprlandAPI
 #include "OverviewInternal.hpp"
 #include "HyprexpoLogic.hpp"
+#include <limits>
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/desktop/state/GlobalWindowController.hpp>
@@ -557,21 +558,28 @@ bool COverview::moveFocus(int dx, int dy) {
     }
 
     if (dy != 0) {
-        int step = dy > 0 ? 1 : -1;
-        int ny   = y;
-        for (int tries = 0; tries < shape.rows; ++tries) {
-            ny += step;
-            if (ny < 0 || ny >= shape.rows) {
-                if (**PWRAPV)
-                    ny = (ny + shape.rows) % shape.rows;
-                else
-                    break;
-            }
-            const int nid = x + ny * shape.cols;
-            if (isTileValid(nid)) {
-                kbFocusID = nid;
-                return true;
-            }
+        // By drawn position, not column index: a centred partial row puts its tiles between the columns above it.
+        const auto toRect = [](const CBox& box) { return Hyprexpo::SRect{box.x, box.y, box.w, box.h}; };
+        // One overview, so its key and bounds only need to pass selectDirectionalTile's validity checks.
+        std::vector<Hyprexpo::SGlobalTile> tiles;
+        for (int id = 0; id < (int)images.size(); ++id) {
+            if (isTileValid(id))
+                tiles.push_back({1, id, {0, 0, 1, 1}, toRect(tileBoxForIndex(id, size->value(), GAP_WIDTH, currentOuterInset(), true))});
+        }
+        const auto direction = dy > 0 ? Hyprexpo::EDirection::Down : Hyprexpo::EDirection::Up;
+        auto       source    = toRect(tileBoxForIndex(kbFocusID, size->value(), GAP_WIDTH, currentOuterInset(), true));
+        auto       target    = Hyprexpo::selectDirectionalTile(source, direction, tiles);
+        if (!target && **PWRAPV) {
+            // Wrap: search again from just past the opposite edge of the grid.
+            double edge = dy > 0 ? std::numeric_limits<double>::infinity() : -std::numeric_limits<double>::infinity();
+            for (const auto& tile : tiles)
+                edge = dy > 0 ? std::min(edge, tile.tileGlobal.y) : std::max(edge, tile.tileGlobal.y + tile.tileGlobal.h);
+            source.y = dy > 0 ? edge - source.h : edge;
+            target   = Hyprexpo::selectDirectionalTile(source, direction, tiles);
+        }
+        if (target && target->tileIndex != kbFocusID) {
+            kbFocusID = target->tileIndex;
+            return true;
         }
     }
     return false;
