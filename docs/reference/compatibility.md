@@ -33,13 +33,13 @@ tracks the recovery and the affected feature PRs.
 
 ## hyprpm and Nix
 
-The current release pins select the landed v0.56.2+4 source on master,
-including the cross-monitor preview and plugin reload fixes from PR #167:
+The current release pins select the landed v0.56.2+5 source on master,
+including the centered-row keyboard navigation fix from PR #165:
 
 | Hyprland release | Pinned HyprExpo commit |
 | --- | --- |
-| v0.56.1 | `cbc49c952426212fcedcf2d393c34761a95653b9` |
-| v0.56.2 | `cbc49c952426212fcedcf2d393c34761a95653b9` |
+| v0.56.1 | `59bf4d378cecde9ed849e9c562306738b1583016` |
+| v0.56.2 | `59bf4d378cecde9ed849e9c562306738b1583016` |
 
 Changing current source does not update what those pins select. Before moving
 a pin, build and test the proposed plugin commit against that exact tagged
@@ -51,9 +51,11 @@ PR #116 was squash-merged, so its former integration-branch pin was not an
 ancestor of master. The earlier v0.56.2+1 pins selected the landed version
 commit after separate builds and matching disposable runtime acceptance.
 Those pins also included PR #118's rectangular fixed grids and PR #119's HyprPM
-description. The v0.56.2+4 source above passed exact builds and disposable
-load, interaction, config reload, and repeated unload/load/reopen checks on
-both supported releases. HDR output and physical touch remain untested.
+description. The v0.56.2+4 source passed exact builds and disposable load,
+interaction, config reload, and repeated unload/load/reopen checks on both
+supported releases. The v0.56.2+5 source above retains those fixes and updates
+vertical keyboard focus for centered rows. HDR output and physical touch remain
+untested.
 See [feature integration](./feature-integration.md) for the historical integration
 checkpoints, release revalidation and remaining test boundaries.
 
