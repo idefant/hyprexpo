@@ -22,9 +22,10 @@ multi-monitor ownership, preview recapture, pinned windows and scrolling input.
 
 ## Building the combined features
 
-Use master or the release tag for the landed features. The v0.56.1 and v0.56.2
-HyprPM pins select combined source on master at
-`5891014c611e1bd56d0121143f0221d46b5c0967`; older release pins are unchanged.
+Use master or the release tag for the landed features. At this integration
+checkpoint, the v0.56.1 and v0.56.2 HyprPM pins selected combined source on
+master at `5891014c611e1bd56d0121143f0221d46b5c0967`; older release pins
+were unchanged. See the compatibility reference for current pins.
 Compile against the exact Hyprland revision and dependency ABI of the disposable
 compositor. An enabled HyprPM entry is not evidence that the combined artifact
 is loaded: confirm the plugin version and configuration errors in the target
