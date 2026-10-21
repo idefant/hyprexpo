@@ -1102,6 +1102,25 @@ int main() {
 
     // --- global multi-monitor geometry ---
     {
+        // Five tiles in three columns: the centred second row sits between the columns above, so vertical moves go by
+        // drawn position. Down from the top-right tile reaches the bottom row, which a column index leaves empty.
+        const auto shape = computeDynamicGridShape(5);
+        std::vector<SGlobalTile> grid;
+        for (int i = 0; i < 5; ++i)
+            grid.push_back({.overviewKey = 1, .tileIndex = i, .overviewGlobal = {0, 0, 1920, 1080},
+                            .tileGlobal = computeTileLayout(i, 5, shape, {1920, 1080}, 5, true).box});
+        const auto down = [&](int from) {
+            const auto target = selectDirectionalTile(grid[from].tileGlobal, EDirection::Down, grid);
+            return target ? target->tileIndex : -1;
+        };
+        expect(shape.cols == 3 && shape.rows == 2, "five tiles make a three-by-two grid");
+        expect(down(0) == 3, "down from the top-left tile reaches the bottom-left tile");
+        expect(down(2) == 4, "down from the top-right tile reaches the bottom-right tile of a centred partial row");
+        const auto up = selectDirectionalTile(grid[4].tileGlobal, EDirection::Up, grid);
+        expect(up && (up->tileIndex == 1 || up->tileIndex == 2), "up from the bottom-right tile reaches a tile it sits under");
+    }
+
+    {
         const SRect source{100, 100, 80, 80};
         const std::vector<SGlobalTile> candidates{
             {.overviewKey = 2, .tileIndex = 0, .overviewGlobal = {240, 0, 200, 300}, .tileGlobal = {240, 100, 60, 60}},
