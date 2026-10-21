@@ -1,5 +1,6 @@
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 
 namespace {
@@ -77,6 +78,17 @@ void expectLastOrder(const std::string& source, const std::string& first, const 
     expect(firstPosition != std::string::npos && secondPosition != std::string::npos && firstPosition < secondPosition, label);
 }
 
+bool cachesPluginConfigPointer(const std::string& source) {
+    std::istringstream lines{source};
+    std::string line;
+    while (std::getline(lines, line)) {
+        if (line.find("static ") != std::string::npos && line.find("getConfigValue(") != std::string::npos &&
+            line.find("getDataStaticPtr()") != std::string::npos)
+            return true;
+    }
+    return false;
+}
+
 }
 
 int main() {
@@ -117,9 +129,9 @@ int main() {
            "drag/drop enable configuration is registered");
     expect(source.find("plugin:hyprexpo:drag_drop_enable") != std::string::npos,
            "drag/drop enable configuration has a compatibility default");
-    expect(source.find("if (**PDRAGDROPENABLE && TARGET)\n                TARGET->beginWindowDrag();") != std::string::npos,
+    expect(source.find("if (dragDropEnabled && TARGET)\n                TARGET->beginWindowDrag();") != std::string::npos,
            "drag/drop enable configuration gates drag start");
-    expect(source.find("if (**PDRAGDROPENABLE && SOURCE)") != std::string::npos && source.find("SOURCE->finishWindowDrag()") != std::string::npos,
+    expect(source.find("if (dragDropEnabled && SOURCE)") != std::string::npos && source.find("SOURCE->finishWindowDrag()") != std::string::npos,
            "drag/drop enable configuration gates drag completion");
     const auto touchSelect = extractFunction(source, "auto onTouchSelect =");
     expectContains(touchSelect, "const ITouch::SDownEvent& event", "grid touch selection consumes the touch-down payload");
@@ -1147,6 +1159,9 @@ int main() {
     expectContains(makefile, "scripts/inject-scrolling-input.sh", "Make source tests track the deterministic input harness");
     expectContains(makefile, "src/IOverviewSession.hpp", "Make headers include the overview interface");
     expectContains(makefile, "src/ScrollingOverview.hpp", "Make headers include the scrolling renderer contract");
+
+    for (const auto* configConsumer : {&source, &interactionSource, &renderSource})
+        expect(!cachesPluginConfigPointer(*configConsumer), "overview config pointers are reacquired after plugin reload");
 
     if (failures != 0)
         return 1;
