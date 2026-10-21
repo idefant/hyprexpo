@@ -465,6 +465,8 @@ int main() {
     expectContains(foreignDamage, "workspace->m_visible || workspace->m_forceRendering", "outgoing and forced-visible workspaces remain live");
     expectContains(foreignDamage, "workspace->m_alpha->isBeingAnimated() || workspace->m_renderOffset->isBeingAnimated()", "workspace transitions remain live");
     expectContains(foreignDamage, "monitorHasPinnedPreviewWindows(source)", "pinned sharing is scoped to the source monitor");
+    const auto foreignWorkspaceCapture = extractFunction(readFile("src/OverviewCapture.cpp"), "bool captureWorkspacePreview(");
+    expectAbsent(foreignWorkspaceCapture, "request.box = {{0, 0}, owner->m_pixelSize}", "foreign previews retain the requested capture size");
     const auto redraw = extractFunction(renderSource, "void COverview::redrawID(");
     for (const auto* capture : {&overviewConstructor, &redraw}) {
         expectContains(*capture, "if (Hyprexpo::Capture::captureWorkspacePreview(", "capture state changes only after success");
@@ -521,6 +523,8 @@ int main() {
            "overview teardown restores the captured submap");
 
     const auto fullRender = extractFunction(renderSource, "void COverview::fullRender(");
+    expectContains(fullRender, "if (const auto texture = images[id].fb ? images[id].fb->getTexture() : nullptr; texture)",
+                   "failed framebuffer captures leave a drawable empty tile");
     expect(!fullRender.empty(), "overview fullRender function exists");
     const auto closeFunction = extractFunction(renderSource, "void COverview::close(bool switchToSelection) {");
     expect(closeFunction.find("Config::Actions::changeWorkspace(NEWIDWS)") != std::string::npos,

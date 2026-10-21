@@ -398,7 +398,8 @@ void COverview::fullRender() {
             }
 
             CRegion damage{0, 0, INT16_MAX, INT16_MAX};
-            Render::GL::g_pHyprOpenGL->renderTextureInternal(images[id].fb->getTexture(), texbox, {.damage = &damage, .a = alpha, .round = tileRound, .roundingPower = ROUND_PWR});
+            if (const auto texture = images[id].fb ? images[id].fb->getTexture() : nullptr; texture)
+                Render::GL::g_pHyprOpenGL->renderTextureInternal(texture, texbox, {.damage = &damage, .a = alpha, .round = tileRound, .roundingPower = ROUND_PWR});
         }
     }
 
