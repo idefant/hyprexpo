@@ -760,6 +760,48 @@ void checkScrollingMutationTransactions() {
 }
 
 int main() {
+    {
+        struct Tile {
+            int monitor;
+            bool visible;
+            bool wasActive;
+            bool hadPinned;
+        };
+        std::vector<Tile> tiles{{1, true, true, false}, {1, false, false, false}, {1, false, false, false},
+                                {1, false, false, false}, {2, true, true, true}};
+        const auto selected = [&](bool pinned) {
+            std::vector<int> result;
+            for (size_t i = 0; i < tiles.size(); ++i) {
+                const auto& tile = tiles[i];
+                if (Hyprexpo::shouldRefreshSourceWorkspace(tile.monitor == 1, tile.visible, tile.wasActive, pinned, tile.hadPinned))
+                    result.push_back(i);
+            }
+            return result;
+        };
+        for (int frame = 0; frame < 120; ++frame)
+            expect(selected(false) == std::vector<int>{0}, "video selects one tile despite several populated inactive workspaces");
+        expect(selected(true) == std::vector<int>({0, 1, 2, 3}), "visible pinned content refreshes all and only source-owned tiles");
+        for (auto& tile : tiles)
+            tile.hadPinned = tile.monitor == 1;
+        expect(selected(false) == std::vector<int>({0, 1, 2, 3}), "unpin, hide, close, or config disable clears the last captured pinned overlay");
+        for (auto& tile : tiles)
+            tile.hadPinned = false;
+        expect(selected(false) == std::vector<int>{0}, "completed pinned cleanup restores one capture per video frame");
+        tiles[0].visible = false;
+        tiles[1].visible = true;
+        expect(selected(false) == std::vector<int>({0, 1}), "instant workspace switch clears the old active tile's special overlay");
+        tiles[0].wasActive = false;
+        tiles[1].wasActive = true;
+        expect(selected(false) == std::vector<int>{1}, "switch cleanup does not keep the old active tile live");
+        tiles[0].visible = true;
+        expect(selected(false) == std::vector<int>({0, 1}), "outgoing visible or animated workspace remains live during transition");
+        tiles[0].visible = false;
+        expect(selected(false) == std::vector<int>{1}, "finished transition returns to one source tile");
+        tiles[1].visible = false;
+        tiles[1].wasActive = false;
+        expect(selected(false).empty(), "source with no visible represented workspace schedules no captures");
+    }
+
     expect(Hyprexpo::absoluteWorkspaceIDs(1, 9, 0) == std::vector<int64_t>({1,2,3,4,5,6,7,8,9}), "cross-monitor first grid includes every absolute ID");
     expect(Hyprexpo::absoluteWorkspaceIDs(6, 4, 8) == std::vector<int64_t>({6,7,8,-1}), "cross-monitor cap produces unselectable padding");
     expect(Hyprexpo::absoluteWorkspaceIDs(6, 2, 5) == std::vector<int64_t>({-1,-1}), "cap below anchor stays empty");

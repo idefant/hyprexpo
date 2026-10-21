@@ -217,6 +217,8 @@ int main() {
 
     const auto workspaceMoveHandler = extractFunction(interactionSource, "void COverview::onWindowMoveToWorkspace(");
     expect(!workspaceMoveHandler.empty(), "workspace-move close handler exists");
+    expectOrder(workspaceMoveHandler, "if (!closing && window && !blockOverviewRendering)", "queueRedrawID(i)", "explicit moves also invalidate inactive workspace tiles");
+    expectAbsent(workspaceMoveHandler, "redrawID(", "workspace move notifications defer captures until pre-render");
     const auto monitorRelevancePos = workspaceMoveHandler.find("const bool movedOnOverviewMonitor");
     const auto classifierPos       = workspaceMoveHandler.find("Hyprexpo::shouldAbortOverviewCloseForWorkspaceMove(window->m_pinned, movedOnOverviewMonitor)");
     const auto abortFlagPos        = workspaceMoveHandler.find("externalWorkspaceMoveDuringClose = true;");
@@ -370,9 +372,10 @@ int main() {
            "source and destination workspace identities queue independent recaptures only after move animations settle");
     expect(headerSource.find("settlingRedrawWorkspaceIDs") != std::string::npos && headerSource.find("settlingRedrawIDs") == std::string::npos,
            "settled recapture state stores workspace identities instead of stale tile indices");
-    const auto flushRedraws = extractFunction(interactionSource, "void COverview::flushQueuedRedraws() {");
+    const auto flushRedraws = extractFunction(interactionSource, "void COverview::flushQueuedRedraws(bool scheduleFrame) {");
+    expectContains(flushRedraws, "if (scheduleFrame)", "pre-render recapture can suppress redundant frame scheduling");
     expect(flushRedraws.find("MON->scheduleFrame();") != std::string::npos,
-           "every completed framebuffer recapture schedules a compositor frame");
+           "explicit recapture can schedule a compositor frame");
     expect(finishDrag.find("\"left_ptr\"") == std::string::npos,
            "release cannot restore the cursor outside centralized reset");
 
@@ -457,6 +460,23 @@ int main() {
     expectContains(deferredSelection, "if (!TARGET ||", "deferred selection rejects a missing owner");
     expectAbsent(deferredSelection, "SELECTED, TARGET", "deferred selection never captures a stale owner");
     expectContains(mainSource, "Hyprexpo::Capture::isCapturingWorkspacePreview()", "owner captures bypass every overview session");
+    const auto foreignDamage = extractFunction(renderSource, "void COverview::onSourceMonitorDamage(");
+    expectOrder(foreignDamage, "Hyprexpo::shouldRefreshSourceWorkspace(workspace->m_monitor == source", "queueRedrawID(i)", "foreign damage uses the tested source workspace policy");
+    expectContains(foreignDamage, "workspace->m_visible || workspace->m_forceRendering", "outgoing and forced-visible workspaces remain live");
+    expectContains(foreignDamage, "workspace->m_alpha->isBeingAnimated() || workspace->m_renderOffset->isBeingAnimated()", "workspace transitions remain live");
+    expectContains(foreignDamage, "monitorHasPinnedPreviewWindows(source)", "pinned sharing is scoped to the source monitor");
+    const auto redraw = extractFunction(renderSource, "void COverview::redrawID(");
+    for (const auto* capture : {&overviewConstructor, &redraw}) {
+        expectContains(*capture, "if (Hyprexpo::Capture::captureWorkspacePreview(", "capture state changes only after success");
+        expectContains(*capture, "image.wasActiveOnSource = owner && PWORKSPACE == owner->m_activeWorkspace", "captures retain active source state for special overlay removal");
+        expectContains(*capture, "image.hadPinnedWindows = monitorHasPinnedPreviewWindows(owner)", "captures retain pinned state for its final removal");
+    }
+    expectAbsent(foreignDamage, "redrawID(", "damage callbacks defer framebuffer capture");
+    const auto preRender = extractFunction(renderSource, "void COverview::onPreRender()");
+    expectContains(preRender, "flushQueuedRedraws(false)", "pre-render flush does not start another frame");
+    const auto foreignNotify = extractFunction(mainSource, "static void notifyForeignWorkspaceDamage(");
+    expectContains(foreignNotify, "source->blocksDamageReporting()", "synthetic overview damage cannot ping-pong between sessions");
+
 
     expect(closeOverview.find("resetSubmapIfNeeded();") != std::string::npos,
            "normal overview close restores the captured submap");

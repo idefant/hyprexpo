@@ -70,14 +70,18 @@ void COverview::redrawID(int id, bool forcelowres) {
         }
     }
     image.pWorkspace = PWORKSPACE;
-    Hyprexpo::Capture::captureWorkspacePreview({
+    if (Hyprexpo::Capture::captureWorkspacePreview({
         .monitor                   = MON,
         .workspace                 = PWORKSPACE,
         .startedOn                 = startedOn,
         .box                       = monbox,
         .showPinnedWindows         = showPinnedWindowsInPreview(),
         .animateStartedOnRestore   = true,
-    }, image.fb);
+    }, image.fb)) {
+        const auto owner = PWORKSPACE ? PWORKSPACE->m_monitor.lock() : PHLMONITOR{};
+        image.wasActiveOnSource = owner && PWORKSPACE == owner->m_activeWorkspace;
+        image.hadPinnedWindows = monitorHasPinnedPreviewWindows(owner);
+    }
 
     blockOverviewRendering = false;
 }
@@ -120,6 +124,41 @@ void COverview::onDamageReported() {
     blockDamageReporting = true;
     g_pHyprRenderer->damageBox(texbox);
     blockDamageReporting = false;
+    MON->scheduleFrame();
+}
+
+void COverview::onSourceMonitorDamage(const PHLMONITOR& source) {
+    const auto MON = pMonitor.lock();
+    if (!MON || !source || source == MON || closing || blockOverviewRendering)
+        return;
+
+    const bool hadQueuedRedraws = !queuedRedrawIDs.empty();
+    const bool hasPinnedWindows = monitorHasPinnedPreviewWindows(source);
+    for (size_t i = 0; i < images.size(); ++i) {
+        auto& image = images[i];
+        if (!image.pWorkspace) {
+            for (const auto& workspace : State::workspaceState()->workspacesCopy()) {
+                if (workspace->m_id == image.workspaceID) {
+                    image.pWorkspace = workspace;
+                    break;
+                }
+            }
+        }
+        const auto& workspace = image.pWorkspace;
+        if (!workspace)
+            continue;
+        const bool visible = workspace == source->m_activeWorkspace || workspace->m_visible || workspace->m_forceRendering ||
+            workspace->m_alpha->isBeingAnimated() || workspace->m_renderOffset->isBeingAnimated();
+        // Refresh the old active tile once to remove its special overlay after a switch.
+        // shortcut: pinned damage has no window identity; refine this when scoped damage is available.
+        if (Hyprexpo::shouldRefreshSourceWorkspace(workspace->m_monitor == source, visible, image.wasActiveOnSource, hasPinnedWindows, image.hadPinnedWindows))
+            queueRedrawID(i);
+    }
+    if (hadQueuedRedraws || queuedRedrawIDs.empty())
+        return;
+
+    // Capture only at this overview's next pre-render, outside the source damage stack.
+    damage();
     MON->scheduleFrame();
 }
 
@@ -243,6 +282,7 @@ void COverview::onPreRender() {
         damageDirty = false;
         redrawID(closing ? (closeOnID == -1 ? openedID : closeOnID) : openedID);
     }
+    flushQueuedRedraws(false);
 }
 
 void COverview::onWorkspaceChange() {

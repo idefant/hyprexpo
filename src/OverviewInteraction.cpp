@@ -458,7 +458,7 @@ void COverview::queueRedrawID(int id) {
         queuedRedrawIDs.push_back(id);
 }
 
-void COverview::flushQueuedRedraws() {
+void COverview::flushQueuedRedraws(bool scheduleFrame) {
     if (queuedRedrawIDs.empty())
         return;
 
@@ -468,9 +468,11 @@ void COverview::flushQueuedRedraws() {
     for (const auto id : ids)
         redrawID(id);
 
-    damage();
-    if (const auto MON = pMonitor.lock())
-        MON->scheduleFrame();
+    if (scheduleFrame) {
+        damage();
+        if (const auto MON = pMonitor.lock())
+            MON->scheduleFrame();
+    }
 }
 
 bool COverview::selectVisibleToken(const std::string& token) {
@@ -653,6 +655,18 @@ void COverview::beginCancelSwipe() {
 }
 
 void COverview::onWindowMoveToWorkspace(const PHLWINDOW& window, const PHLWORKSPACE& workspace) {
+    if (!closing && window && !blockOverviewRendering) {
+        // Refresh both ends of a move even when the event exposes only the new workspace.
+        for (size_t i = 0; i < images.size(); ++i)
+            queueRedrawID(i);
+        if (!queuedRedrawIDs.empty()) {
+            damage();
+            if (const auto monitor = pMonitor.lock())
+                monitor->scheduleFrame();
+        }
+        return;
+    }
+
     if (!closing || externalWorkspaceMoveDuringClose || !window)
         return;
 

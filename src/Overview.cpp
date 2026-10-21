@@ -483,6 +483,12 @@ bool showPinnedWindowsInPreview() {
     return **PSHOWPINNED != 0;
 }
 
+bool monitorHasPinnedPreviewWindows(const PHLMONITOR& monitor) {
+    return monitor && showPinnedWindowsInPreview() && std::ranges::any_of(Desktop::windowState()->windows(), [&](const auto& window) {
+        return window && window->m_isMapped && !window->isHidden() && window->m_pinned && window->m_monitor == monitor;
+    });
+}
+
 std::vector<SPinnedWindowPreviewState> applyPinnedWindowPreviewState(bool showPinnedWindows) {
     std::vector<SPinnedWindowPreviewState> states;
     if (showPinnedWindows)
@@ -1306,14 +1312,18 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
             currentid = i;
 
         image.pWorkspace = PWORKSPACE;
-        Hyprexpo::Capture::captureWorkspacePreview({
+        if (Hyprexpo::Capture::captureWorkspacePreview({
             .monitor              = PMONITOR,
             .workspace            = PWORKSPACE,
             .startedOn            = startedOn,
             .box                  = monbox,
             .showPinnedWindows    = showPinnedWindowsInPreview(),
             .blockSurfaceFeedback = true,
-        }, image.fb);
+        }, image.fb)) {
+            const auto owner = PWORKSPACE ? PWORKSPACE->m_monitor.lock() : PHLMONITOR{};
+            image.wasActiveOnSource = owner && PWORKSPACE == owner->m_activeWorkspace;
+            image.hadPinnedWindows = monitorHasPinnedPreviewWindows(owner);
+        }
 
         image.box = tileBoxForIndex((int)i, pMonitor->m_size, GAP_WIDTH, 0.0, true);
     }

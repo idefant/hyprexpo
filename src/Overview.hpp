@@ -31,6 +31,7 @@ class COverview final : public IOverviewSession {
     void render() override;
     void damage() override;
     void onDamageReported() override;
+    void onSourceMonitorDamage(const PHLMONITOR& source) override;
     void onPreRender() override;
     void onConfigReload() override {
         onDamageReported();
@@ -93,6 +94,8 @@ class COverview final : public IOverviewSession {
         SP<Render::IFramebuffer> fb;
         int64_t                  workspaceID = -1;
         PHLWORKSPACE             pWorkspace;
+        bool                     wasActiveOnSource = false;
+        bool                     hadPinnedWindows = false;
         CBox                     box;
         // Label textures per state for customization
         SP<Render::ITexture>     labelTexDefault;
@@ -130,7 +133,7 @@ class COverview final : public IOverviewSession {
     void       updateWindowDrag();
     void       redrawDraggedWorkspace(int64_t workspaceID);
     void       queueRedrawID(int id);
-    void       flushQueuedRedraws();
+    void       flushQueuedRedraws(bool scheduleFrame = true);
     PHLWINDOW  windowAtTilePoint(int id, const Vector2D& localPoint) const;
     Vector2D   tilePointToWorkspacePoint(int id, const Vector2D& localPoint) const;
     PHLWORKSPACE ensureWorkspaceForTile(int id);
