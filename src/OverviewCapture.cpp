@@ -166,9 +166,9 @@ bool isCapturingWorkspacePreview() {
 bool captureWorkspacePreview(const SWorkspaceCaptureRequest& original, SP<Render::IFramebuffer>& framebuffer) {
     auto request = original;
     if (const auto owner = request.workspace ? request.workspace->m_monitor.lock() : PHLMONITOR{}; owner && owner != request.monitor) {
+        // Keep the caller's bounded thumbnail size when switching to the owning monitor.
         request.monitor = owner;
         request.startedOn = owner->m_activeWorkspace;
-        request.box = {{0, 0}, owner->m_pixelSize};
         request.animateStartedOnRestore = false;
         request.blockSurfaceFeedback = true;
     }

@@ -1,5 +1,6 @@
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 
 namespace {
@@ -77,6 +78,17 @@ void expectLastOrder(const std::string& source, const std::string& first, const 
     expect(firstPosition != std::string::npos && secondPosition != std::string::npos && firstPosition < secondPosition, label);
 }
 
+bool cachesPluginConfigPointer(const std::string& source) {
+    std::istringstream lines{source};
+    std::string line;
+    while (std::getline(lines, line)) {
+        if (line.find("static ") != std::string::npos && line.find("getConfigValue(") != std::string::npos &&
+            line.find("getDataStaticPtr()") != std::string::npos)
+            return true;
+    }
+    return false;
+}
+
 }
 
 int main() {
@@ -117,9 +129,9 @@ int main() {
            "drag/drop enable configuration is registered");
     expect(source.find("plugin:hyprexpo:drag_drop_enable") != std::string::npos,
            "drag/drop enable configuration has a compatibility default");
-    expect(source.find("if (**PDRAGDROPENABLE && TARGET)\n                TARGET->beginWindowDrag();") != std::string::npos,
+    expect(source.find("if (dragDropEnabled && TARGET)\n                TARGET->beginWindowDrag();") != std::string::npos,
            "drag/drop enable configuration gates drag start");
-    expect(source.find("if (**PDRAGDROPENABLE && SOURCE)") != std::string::npos && source.find("SOURCE->finishWindowDrag()") != std::string::npos,
+    expect(source.find("if (dragDropEnabled && SOURCE)") != std::string::npos && source.find("SOURCE->finishWindowDrag()") != std::string::npos,
            "drag/drop enable configuration gates drag completion");
     const auto touchSelect = extractFunction(source, "auto onTouchSelect =");
     expectContains(touchSelect, "const ITouch::SDownEvent& event", "grid touch selection consumes the touch-down payload");
@@ -465,6 +477,8 @@ int main() {
     expectContains(foreignDamage, "workspace->m_visible || workspace->m_forceRendering", "outgoing and forced-visible workspaces remain live");
     expectContains(foreignDamage, "workspace->m_alpha->isBeingAnimated() || workspace->m_renderOffset->isBeingAnimated()", "workspace transitions remain live");
     expectContains(foreignDamage, "monitorHasPinnedPreviewWindows(source)", "pinned sharing is scoped to the source monitor");
+    const auto foreignWorkspaceCapture = extractFunction(readFile("src/OverviewCapture.cpp"), "bool captureWorkspacePreview(");
+    expectAbsent(foreignWorkspaceCapture, "request.box = {{0, 0}, owner->m_pixelSize}", "foreign previews retain the requested capture size");
     const auto redraw = extractFunction(renderSource, "void COverview::redrawID(");
     for (const auto* capture : {&overviewConstructor, &redraw}) {
         expectContains(*capture, "if (Hyprexpo::Capture::captureWorkspacePreview(", "capture state changes only after success");
@@ -521,6 +535,8 @@ int main() {
            "overview teardown restores the captured submap");
 
     const auto fullRender = extractFunction(renderSource, "void COverview::fullRender(");
+    expectContains(fullRender, "if (const auto texture = images[id].fb ? images[id].fb->getTexture() : nullptr; texture)",
+                   "failed framebuffer captures leave a drawable empty tile");
     expect(!fullRender.empty(), "overview fullRender function exists");
     const auto closeFunction = extractFunction(renderSource, "void COverview::close(bool switchToSelection) {");
     expect(closeFunction.find("Config::Actions::changeWorkspace(NEWIDWS)") != std::string::npos,
@@ -1143,6 +1159,9 @@ int main() {
     expectContains(makefile, "scripts/inject-scrolling-input.sh", "Make source tests track the deterministic input harness");
     expectContains(makefile, "src/IOverviewSession.hpp", "Make headers include the overview interface");
     expectContains(makefile, "src/ScrollingOverview.hpp", "Make headers include the scrolling renderer contract");
+
+    for (const auto* configConsumer : {&source, &interactionSource, &renderSource})
+        expect(!cachesPluginConfigPointer(*configConsumer), "overview config pointers are reacquired after plugin reload");
 
     if (failures != 0)
         return 1;

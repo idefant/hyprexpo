@@ -21,10 +21,14 @@ evidence. The flake's default must stay on an explicit supported release.
 
 ```sh
 make check-pins        # 1. verify every hyprpm plugin pin is on master's history
-make version v0.56.2   # 2. write + commit the VERSION file
+make version v0.56.2+4 # 2. write + commit VERSION for a new candidate
 make tag               # 3. create the matching annotated git tag
 make publish           # 4. push branch + tag (triggers the release workflow)
 ```
+
+If the intended version is already committed in `VERSION`, skip `make version`.
+For v0.56.2+4, PR #166 already committed it; complete runtime acceptance and
+land the replacement pins before tagging that existing version.
 
 The second hash in each `hyprpm.toml` `commit_pins` entry is a hyprexpo commit.
 It must be the commit that actually landed on `master`. In particular, do not
