@@ -1,6 +1,5 @@
 #include "OverviewCapture.hpp"
 
-#include "OverviewInternal.hpp"
 #include "HyprlandConfigCompat.hpp"
 #include "HyprexpoConfig.hpp"
 #include "HyprexpoLogic.hpp"
@@ -9,6 +8,8 @@
 
 #define private   public
 #define protected public
+// WorkspaceCompat includes Monitor.hpp; expose updateMatrix before its first inclusion.
+#include "OverviewInternal.hpp"
 #include <hyprland/src/animation/WorkspaceAnimationController.hpp>
 #include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
