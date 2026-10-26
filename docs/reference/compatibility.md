@@ -33,13 +33,13 @@ tracks the recovery and the affected feature PRs.
 
 ## hyprpm and Nix
 
-The release pins introduced by PR #112 now select the combined, tested source
-on master (including the issue #110 fix and the PR #116 feature integration):
+The current release pins select the landed v0.56.2+5 source on master,
+including the centered-row keyboard navigation fix from PR #165:
 
 | Hyprland release | Pinned HyprExpo commit |
 | --- | --- |
-| v0.56.1 | `5891014c611e1bd56d0121143f0221d46b5c0967` |
-| v0.56.2 | `5891014c611e1bd56d0121143f0221d46b5c0967` |
+| v0.56.1 | `59bf4d378cecde9ed849e9c562306738b1583016` |
+| v0.56.2 | `59bf4d378cecde9ed849e9c562306738b1583016` |
 
 Changing current source does not update what those pins select. Before moving
 a pin, build and test the proposed plugin commit against that exact tagged
@@ -48,16 +48,19 @@ branch with `make check-pins REF=HEAD`,
 and validate loading in a disposable matching compositor.
 
 PR #116 was squash-merged, so its former integration-branch pin was not an
-ancestor of master. Both pins now select the landed version commit after fresh
-separate builds and matching disposable runtime acceptance on both releases.
-The v0.56.2+1 pins additionally include PR #118's rectangular fixed grids and
-PR #119's current HyprPM description. That landed master tree was again built
-and loaded against both supported releases before the pins moved.
+ancestor of master. The earlier v0.56.2+1 pins selected the landed version
+commit after separate builds and matching disposable runtime acceptance.
+Those pins also included PR #118's rectangular fixed grids and PR #119's HyprPM
+description. The v0.56.2+4 source passed exact builds and disposable load,
+interaction, config reload, and repeated unload/load/reopen checks on both
+supported releases. The v0.56.2+5 source above retains those fixes and updates
+vertical keyboard focus for centered rows. HDR output and physical touch remain
+untested.
 See [feature integration](./feature-integration.md) for the historical integration
 checkpoints, release revalidation and remaining test boundaries.
 
 The `master` flake has an explicit v0.56.2 reference; this development candidate
-pins `34eb03bd8da01024596c367fba66485a8c9b8ca7`. Nix users should keep the plugin's
+pins `c4e7596a3db89cb0d213eeb3e436599422995b43`. Nix users should keep the plugin's
 Hyprland input aligned with their system input through `default.nix` and the
 Hyprland plugin packaging path. Overrides must select a supported release;
 following an arbitrary development revision is not a compatibility guarantee.

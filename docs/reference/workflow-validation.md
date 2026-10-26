@@ -15,9 +15,10 @@ publication. The infrastructure and development candidate are reviewed in
 | Development | `34eb03bd8da01024596c367fba66485a8c9b8ca7` | Development runtime source includes the API port and Lua caller fixes through `bb869b1abba13576313936a2ec088580e7c78fb0`. |
 
 The development history retains original contributor commit
-`fbdfba47cc7163578271ba7b342fd8674cd2e7af`. Release pins remain unchanged; the two
-currently supported releases still select plugin source
-`5891014c611e1bd56d0121143f0221d46b5c0967`.
+`fbdfba47cc7163578271ba7b342fd8674cd2e7af`. At the time of this receipt,
+the two supported releases selected plugin source
+`5891014c611e1bd56d0121143f0221d46b5c0967`. See the compatibility
+reference for current pins.
 
 The PR checks identify their own final tested head/merge commits. Each
 compatibility artifact contains the plugin commit/tree, upstream commit,

@@ -31,19 +31,30 @@ typedef void (*origAddDamageB)(void*, const pixman_region32_t*);
 static void hkRenderWorkspace(void* thisptr, Render::CRenderContext& ctx, PHLMONITOR pMonitor, PHLWORKSPACE pWorkspace, const Time::steady_tp& now, const CBox& geometry) {
     auto* const OV = overviewForMonitor(pMonitor);
 
-    if (!OV || isRenderingOverview() || OV->blocksOverviewRendering() || !OV->shouldRenderOverviewForMonitor(pMonitor))
+    if (!OV || isRenderingOverview() || Hyprexpo::Capture::isCapturingWorkspacePreview() || OV->blocksOverviewRendering() || !OV->shouldRenderOverviewForMonitor(pMonitor))
         ((origRenderWorkspace)(g_pRenderWorkspaceHook->m_original))(thisptr, ctx, pMonitor, pWorkspace, now, geometry);
     else
         OV->render(ctx);
+}
+
+static void notifyForeignWorkspaceDamage(const PHLMONITOR& monitor) {
+    if (!monitor || isRenderingOverview() || Hyprexpo::Capture::isCapturingWorkspacePreview())
+        return;
+    const auto source = overviewForMonitor(monitor);
+    if (source && (source->blocksDamageReporting() || source->blocksOverviewRendering()))
+        return;
+    forEachOverview([&](IOverviewSession& session) { session.onSourceMonitorDamage(monitor); });
 }
 
 static void hkAddDamageA(void* thisptr, const CBox& box) {
     const auto PMONITOR   = (Monitor::CMonitor*)thisptr;
     const auto PMONITORSP = PMONITOR ? PMONITOR->m_self.lock() : PHLMONITOR{};
 
+    notifyForeignWorkspaceDamage(PMONITORSP);
+
     auto* const OV = overviewForMonitor(PMONITORSP);
 
-    if (!OV || !OV->shouldRenderOverviewForMonitor(PMONITORSP) || OV->blocksDamageReporting()) {
+    if (!OV || Hyprexpo::Capture::isCapturingWorkspacePreview() || !OV->shouldRenderOverviewForMonitor(PMONITORSP) || OV->blocksDamageReporting()) {
         ((origAddDamageA)g_pAddDamageHookA->m_original)(thisptr, box);
         return;
     }
@@ -55,9 +66,11 @@ static void hkAddDamageB(void* thisptr, const pixman_region32_t* rg) {
     const auto PMONITOR   = (Monitor::CMonitor*)thisptr;
     const auto PMONITORSP = PMONITOR ? PMONITOR->m_self.lock() : PHLMONITOR{};
 
+    notifyForeignWorkspaceDamage(PMONITORSP);
+
     auto* const OV = overviewForMonitor(PMONITORSP);
 
-    if (!OV || !OV->shouldRenderOverviewForMonitor(PMONITORSP) || OV->blocksDamageReporting()) {
+    if (!OV || Hyprexpo::Capture::isCapturingWorkspacePreview() || !OV->shouldRenderOverviewForMonitor(PMONITORSP) || OV->blocksDamageReporting()) {
         ((origAddDamageB)g_pAddDamageHookB->m_original)(thisptr, rg);
         return;
     }
