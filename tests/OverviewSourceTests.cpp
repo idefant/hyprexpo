@@ -858,10 +858,10 @@ int main() {
     const auto workspaceCapture = extractFunction(captureSource, "bool captureWorkspacePreview(");
     expect(!workspaceCapture.empty(), "shared workspace capture implementation exists");
     expectContains(workspaceCapture,
-                   "texture->m_transform = workspacePreviewNeedsHalfTurn(static_cast<int>(monitorState.transform())) ? HYPRUTILS_TRANSFORM_180 : HYPRUTILS_TRANSFORM_NORMAL;",
-                   "workspace texture correction uses the tested policy with the saved output transform");
-    expectOrder(workspaceCapture, "rendererState.finish()", "workspacePreviewNeedsHalfTurn(", "texture correction follows capture rendering");
-    expectOrder(workspaceCapture, "workspacePreviewNeedsHalfTurn(", "monitorState.restore()", "texture correction precedes monitor restoration");
+                   "texture->m_transform = HYPRUTILS_TRANSFORM_NORMAL;",
+                   "monitor-space workspace captures must not receive a second output rotation");
+    expectOrder(workspaceCapture, "rendererState.finish()", "texture->m_transform = HYPRUTILS_TRANSFORM_NORMAL;", "texture orientation metadata follows capture rendering");
+    expectOrder(workspaceCapture, "texture->m_transform = HYPRUTILS_TRANSFORM_NORMAL;", "monitorState.restore()", "texture orientation metadata precedes monitor restoration");
     const auto rotatedCapture = extractFunction(workspaceCapture, "if (isTransformRotated(monitorState.transform()))");
     expectContains(rotatedCapture, "captureBox = {{0, 0}, {captureBox.h, captureBox.w}};", "only quarter-turn outputs swap capture geometry");
     expectContains(rotatedCapture, "setMonitorGeometry(*request.monitor, WL_OUTPUT_TRANSFORM_NORMAL, captureBox.size(), captureBox.size())",

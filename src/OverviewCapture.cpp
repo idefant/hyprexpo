@@ -271,9 +271,10 @@ bool captureWorkspacePreview(const SWorkspaceCaptureRequest& original, SP<Render
         if (!rendererState.restored())
             return false;
 
-        if (const auto texture = framebuffer->getTexture(); texture)
-            texture->m_transform = workspacePreviewNeedsHalfTurn(static_cast<int>(monitorState.transform())) ? HYPRUTILS_TRANSFORM_180 : HYPRUTILS_TRANSFORM_NORMAL;
-        else
+        if (const auto texture = framebuffer->getTexture(); texture) {
+            // RPT_MONITOR captures are already in monitor space, including 180-degree outputs.
+            texture->m_transform = HYPRUTILS_TRANSFORM_NORMAL;
+        } else
             return false;
 
         monitorState.restore();
