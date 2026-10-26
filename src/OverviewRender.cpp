@@ -16,6 +16,8 @@
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 #include <hyprland/src/state/WorkspaceState.hpp>
+#include <hyprland/src/state/MonitorState.hpp>
+#include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
 #undef private
 #undef protected
 #include <algorithm>
@@ -68,14 +70,18 @@ void COverview::redrawID(int id, bool forcelowres) {
         }
     }
     image.pWorkspace = PWORKSPACE;
-    Hyprexpo::Capture::captureWorkspacePreview({
+    if (Hyprexpo::Capture::captureWorkspacePreview({
         .monitor                   = MON,
         .workspace                 = PWORKSPACE,
         .startedOn                 = startedOn,
         .box                       = monbox,
         .showPinnedWindows         = showPinnedWindowsInPreview(),
         .animateStartedOnRestore   = true,
-    }, image.fb);
+    }, image.fb)) {
+        const auto owner = PWORKSPACE ? PWORKSPACE->m_monitor.lock() : PHLMONITOR{};
+        image.wasActiveOnSource = owner && PWORKSPACE == owner->m_activeWorkspace;
+        image.hadPinnedWindows = monitorHasPinnedPreviewWindows(owner);
+    }
 
     blockOverviewRendering = false;
 }
@@ -121,6 +127,41 @@ void COverview::onDamageReported() {
     MON->scheduleFrame();
 }
 
+void COverview::onSourceMonitorDamage(const PHLMONITOR& source) {
+    const auto MON = pMonitor.lock();
+    if (!MON || !source || source == MON || closing || blockOverviewRendering)
+        return;
+
+    const bool hadQueuedRedraws = !queuedRedrawIDs.empty();
+    const bool hasPinnedWindows = monitorHasPinnedPreviewWindows(source);
+    for (size_t i = 0; i < images.size(); ++i) {
+        auto& image = images[i];
+        if (!image.pWorkspace) {
+            for (const auto& workspace : State::workspaceState()->workspacesCopy()) {
+                if (workspaceHasID(workspace, image.workspaceID)) {
+                    image.pWorkspace = workspace;
+                    break;
+                }
+            }
+        }
+        const auto& workspace = image.pWorkspace;
+        if (!workspace)
+            continue;
+        const bool visible = workspace == source->m_activeWorkspace || workspace->visible() || workspace->m_forceRendering ||
+            workspace->m_alpha->isBeingAnimated() || workspace->m_renderOffset->isBeingAnimated();
+        // Refresh the old active tile once to remove its special overlay after a switch.
+        // shortcut: pinned damage has no window identity; refine this when scoped damage is available.
+        if (Hyprexpo::shouldRefreshSourceWorkspace(workspace->m_monitor == source, visible, image.wasActiveOnSource, hasPinnedWindows, image.hadPinnedWindows))
+            queueRedrawID(i);
+    }
+    if (hadQueuedRedraws || queuedRedrawIDs.empty())
+        return;
+
+    // Capture only at this overview's next pre-render, outside the source damage stack.
+    damage();
+    MON->scheduleFrame();
+}
+
 void COverview::close(bool switchToSelection) {
     if (closing)
         return;
@@ -147,6 +188,37 @@ void COverview::close(bool switchToSelection) {
 
     const int   SAFEID = std::clamp(ID, 0, (int)images.size() - 1);
     const auto& TILE   = images[SAFEID];
+
+    const auto SELECTED = switchToSelection && isTileValid(SAFEID) ? ensureWorkspaceForTile(SAFEID) : PHLWORKSPACE{};
+    const auto TARGET = SELECTED ? SELECTED->m_monitor.lock() : PHLMONITOR{};
+    if (TARGET && TARGET != MON) {
+        closing = true;
+        const auto key = overviewMonitorKey(MON);
+        const auto generation = m_sessionGeneration;
+        // Leave the input/animation stack before destroying sessions or changing focus.
+        g_pEventLoopManager->doLater([key, generation, SELECTED] {
+            if (!overviewForSession(key, generation))
+                return;
+            destroyAllOverviews();
+            const auto TARGET = SELECTED->m_monitor.lock();
+            if (!TARGET || std::ranges::find(State::monitorState()->monitors(), TARGET) == State::monitorState()->monitors().end())
+                return;
+            TARGET->setSpecialWorkspace(0);
+            const auto CHANGE = Config::Actions::changeWorkspace(SELECTED);
+            if (!CHANGE) {
+                Log::logger->log(Log::ERR, Log::logFnName(), "[hyprexpo] failed to select foreign workspace: {}", CHANGE.error().message);
+                return;
+            }
+            const auto MOVE = Config::Actions::moveCursor(TARGET->m_position + TARGET->m_size / 2.0);
+            if (!MOVE)
+                Log::logger->log(Log::ERR, Log::logFnName(), "[hyprexpo] failed to move cursor: {}", MOVE.error().message);
+            for (const auto& monitor : State::monitorState()->monitors()) {
+                g_pHyprRenderer->damageMonitor(monitor);
+                monitor->scheduleFrame();
+            }
+        });
+        return;
+    }
 
     const auto targetSize = zoomSizeForCurrentGrid(MON->m_size);
     *size = targetSize;
@@ -206,10 +278,13 @@ void COverview::close(bool switchToSelection) {
 }
 
 void COverview::onPreRender() {
+    if (!closing)
+        flushQueuedRedraws();
     if (damageDirty) {
         damageDirty = false;
         redrawID(closing ? (closeOnID == -1 ? openedID : closeOnID) : openedID);
     }
+    flushQueuedRedraws(false);
 }
 
 void COverview::onWorkspaceChange() {
@@ -325,7 +400,8 @@ void COverview::fullRender(Render::CRenderContext& ctx) {
             }
 
             CRegion damage{0, 0, INT16_MAX, INT16_MAX};
-            Render::GL::g_pHyprOpenGL->renderTextureInternal(ctx, images[id].fb->getTexture(), texbox, {.damage = &damage, .a = alpha, .round = tileRound, .roundingPower = ROUND_PWR});
+            if (const auto texture = images[id].fb ? images[id].fb->getTexture() : nullptr; texture)
+                Render::GL::g_pHyprOpenGL->renderTextureInternal(ctx, texture, texbox, {.damage = &damage, .a = alpha, .round = tileRound, .roundingPower = ROUND_PWR});
         }
     }
 

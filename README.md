@@ -47,7 +47,7 @@ hyprctl version
 ```
 
 This development checkout pins Hyprland
-`663b29b846e4bad17cfa29941f6d2fbb6b61f139`. For Hyprland-git, use the separate [development installation guide](docs/guides/development-installation.md).
+`c4e7596a3db89cb0d213eeb3e436599422995b43`. For Hyprland-git, use the separate [development installation guide](docs/guides/development-installation.md).
 For Nix-managed Hyprland, use the [Nix installation path](#nix).
 
 <a id="install"></a>
@@ -139,6 +139,14 @@ hl.config({
   workspace previews. Drag and drop is enabled by default.
 - **Pinned/PiP previews:** `show_pinned_windows = 0` hides them from thumbnails
   by default, while leaving their normal Hyprland behavior unchanged.
+- **Foreign preview updates:** monitor damage refreshes the source's active,
+  visible, and transitioning workspace tiles. Inactive tiles keep their snapshot
+  until activation or an explicit window move. The previously active tile gets
+  one final refresh to remove any captured special-workspace overlay. When visible
+  pinned windows are included, every source-owned tile must refresh because the
+  damage notification does not identify the changed window. This also applies
+  to unrelated video damage while a pinned window is present. Removing the pinned
+  content triggers one final refresh of tiles that captured it.
 - **Number keys:** `number_key_mode = workspace` selects global workspace IDs;
   `index` selects visible positions; `passthrough` leaves digits to your own binds.
 

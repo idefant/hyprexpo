@@ -1,5 +1,6 @@
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -79,6 +80,17 @@ void expectLastOrder(const std::string& source, const std::string& first, const 
     expect(firstPosition != std::string::npos && secondPosition != std::string::npos && firstPosition < secondPosition, label);
 }
 
+bool cachesPluginConfigPointer(const std::string& source) {
+    std::istringstream lines{source};
+    std::string line;
+    while (std::getline(lines, line)) {
+        if (line.find("static ") != std::string::npos && line.find("getConfigValue(") != std::string::npos &&
+            line.find("getDataStaticPtr()") != std::string::npos)
+            return true;
+    }
+    return false;
+}
+
 }
 
 int main() {
@@ -125,9 +137,9 @@ int main() {
            "drag/drop enable configuration is registered");
     expect(source.find("plugin:hyprexpo:drag_drop_enable") != std::string::npos,
            "drag/drop enable configuration has a compatibility default");
-    expect(source.find("if (**PDRAGDROPENABLE && TARGET)\n                TARGET->beginWindowDrag();") != std::string::npos,
+    expect(source.find("if (dragDropEnabled && TARGET)\n                TARGET->beginWindowDrag();") != std::string::npos,
            "drag/drop enable configuration gates drag start");
-    expect(source.find("if (**PDRAGDROPENABLE && SOURCE)") != std::string::npos && source.find("SOURCE->finishWindowDrag()") != std::string::npos,
+    expect(source.find("if (dragDropEnabled && SOURCE)") != std::string::npos && source.find("SOURCE->finishWindowDrag()") != std::string::npos,
            "drag/drop enable configuration gates drag completion");
     const auto touchSelect = extractFunction(source, "auto onTouchSelect =");
     expectContains(touchSelect, "const ITouch::SDownEvent& event", "grid touch selection consumes the touch-down payload");
@@ -225,6 +237,8 @@ int main() {
 
     const auto workspaceMoveHandler = extractFunction(interactionSource, "void COverview::onWindowMoveToWorkspace(");
     expect(!workspaceMoveHandler.empty(), "workspace-move close handler exists");
+    expectOrder(workspaceMoveHandler, "if (!closing && window && !blockOverviewRendering)", "queueRedrawID(i)", "explicit moves also invalidate inactive workspace tiles");
+    expectAbsent(workspaceMoveHandler, "redrawID(", "workspace move notifications defer captures until pre-render");
     const auto monitorRelevancePos = workspaceMoveHandler.find("const bool movedOnOverviewMonitor");
     const auto classifierPos       = workspaceMoveHandler.find("Hyprexpo::shouldAbortOverviewCloseForWorkspaceMove((window->m_state & Desktop::View::WINDOW_STATE_PINNED) != Desktop::View::WINDOW_STATE_NONE, movedOnOverviewMonitor)");
     const auto abortFlagPos        = workspaceMoveHandler.find("externalWorkspaceMoveDuringClose = true;");
@@ -378,9 +392,10 @@ int main() {
            "source and destination workspace identities queue independent recaptures only after move animations settle");
     expect(headerSource.find("settlingRedrawWorkspaceIDs") != std::string::npos && headerSource.find("settlingRedrawIDs") == std::string::npos,
            "settled recapture state stores workspace identities instead of stale tile indices");
-    const auto flushRedraws = extractFunction(interactionSource, "void COverview::flushQueuedRedraws() {");
+    const auto flushRedraws = extractFunction(interactionSource, "void COverview::flushQueuedRedraws(bool scheduleFrame) {");
+    expectContains(flushRedraws, "if (scheduleFrame)", "pre-render recapture can suppress redundant frame scheduling");
     expect(flushRedraws.find("MON->scheduleFrame();") != std::string::npos,
-           "every completed framebuffer recapture schedules a compositor frame");
+           "explicit recapture can schedule a compositor frame");
     expect(finishDrag.find("\"left_ptr\"") == std::string::npos,
            "release cannot restore the cursor outside centralized reset");
 
@@ -455,6 +470,36 @@ int main() {
     expect(!renderSource.empty(), "src/OverviewRender.cpp can be read from repo root");
     const auto closeOverview = extractFunction(renderSource, "void COverview::close(bool switchToSelection) {");
     expect(!closeOverview.empty(), "overview close function exists");
+    expectOrder(closeOverview, "if (TARGET && TARGET != MON)", "const auto targetSize", "foreign selection bypasses the source zoom");
+    expectOrder(closeOverview, "destroyAllOverviews();", "Config::Actions::changeWorkspace(SELECTED)", "foreign selection changes focus after all sessions are removed");
+    expectOrder(closeOverview, "std::ranges::find(State::monitorState()->monitors(), TARGET)", "TARGET->setSpecialWorkspace(0);", "foreign selection hides a live target monitor's special workspace");
+    expectOrder(closeOverview, "TARGET->setSpecialWorkspace(0);", "Config::Actions::changeWorkspace(SELECTED)", "foreign selection hides the target special workspace before switching");
+    expectContains(closeOverview, "overviewForSession(key, generation)", "deferred selection cannot destroy a replacement session");
+    const auto deferredSelection = extractFunction(closeOverview, "g_pEventLoopManager->doLater(");
+    expectOrder(deferredSelection, "destroyAllOverviews();", "SELECTED->m_monitor.lock()", "deferred selection resolves current ownership after teardown");
+    expectContains(deferredSelection, "if (!TARGET ||", "deferred selection rejects a missing owner");
+    expectAbsent(deferredSelection, "SELECTED, TARGET", "deferred selection never captures a stale owner");
+    expectContains(mainSource, "Hyprexpo::Capture::isCapturingWorkspacePreview()", "owner captures bypass every overview session");
+    const auto foreignDamage = extractFunction(renderSource, "void COverview::onSourceMonitorDamage(");
+    expectOrder(foreignDamage, "Hyprexpo::shouldRefreshSourceWorkspace(workspace->m_monitor == source", "queueRedrawID(i)", "foreign damage uses the tested source workspace policy");
+    expectContains(foreignDamage, "workspace->visible() || workspace->m_forceRendering", "outgoing and forced-visible workspaces remain live");
+    expectContains(foreignDamage, "workspace->m_alpha->isBeingAnimated() || workspace->m_renderOffset->isBeingAnimated()", "workspace transitions remain live");
+    expectContains(foreignDamage, "monitorHasPinnedPreviewWindows(source)", "pinned sharing is scoped to the source monitor");
+    const auto foreignWorkspaceCapture = extractFunction(readFile("src/OverviewCapture.cpp"), "bool captureWorkspacePreview(");
+    expectAbsent(foreignWorkspaceCapture, "request.box = {{0, 0}, owner->m_pixelSize}", "foreign previews retain the requested capture size");
+    const auto redraw = extractFunction(renderSource, "void COverview::redrawID(");
+    for (const auto* capture : {&overviewConstructor, &redraw}) {
+        expectContains(*capture, "if (Hyprexpo::Capture::captureWorkspacePreview(", "capture state changes only after success");
+        expectContains(*capture, "image.wasActiveOnSource = owner && PWORKSPACE == owner->m_activeWorkspace", "captures retain active source state for special overlay removal");
+        expectContains(*capture, "image.hadPinnedWindows = monitorHasPinnedPreviewWindows(owner)", "captures retain pinned state for its final removal");
+    }
+    expectAbsent(foreignDamage, "redrawID(", "damage callbacks defer framebuffer capture");
+    const auto preRender = extractFunction(renderSource, "void COverview::onPreRender()");
+    expectContains(preRender, "flushQueuedRedraws(false)", "pre-render flush does not start another frame");
+    const auto foreignNotify = extractFunction(mainSource, "static void notifyForeignWorkspaceDamage(");
+    expectContains(foreignNotify, "source->blocksDamageReporting()", "synthetic overview damage cannot ping-pong between sessions");
+
+
     expect(closeOverview.find("resetSubmapIfNeeded();") != std::string::npos,
            "normal overview close restores the captured submap");
     expect(overviewConstructor.find("emptyTilesSelectable = skipEmpty;") != std::string::npos,
@@ -498,6 +543,8 @@ int main() {
            "overview teardown restores the captured submap");
 
     const auto fullRender = extractFunction(renderSource, "void COverview::fullRender(");
+    expectContains(fullRender, "if (const auto texture = images[id].fb ? images[id].fb->getTexture() : nullptr; texture)",
+                   "failed framebuffer captures leave a drawable empty tile");
     expect(!fullRender.empty(), "overview fullRender function exists");
     const auto closeFunction = extractFunction(renderSource, "void COverview::close(bool switchToSelection) {");
     expect(closeFunction.find("Config::Actions::changeWorkspace(NEWIDWS)") != std::string::npos,
@@ -810,6 +857,19 @@ int main() {
 
     const auto workspaceCapture = extractFunction(captureSource, "bool captureWorkspacePreview(");
     expect(!workspaceCapture.empty(), "shared workspace capture implementation exists");
+    expectContains(workspaceCapture,
+                   "texture->m_transform = workspacePreviewNeedsHalfTurn(static_cast<int>(monitorState.transform())) ? HYPRUTILS_TRANSFORM_180 : HYPRUTILS_TRANSFORM_NORMAL;",
+                   "workspace texture correction uses the tested policy with the saved output transform");
+    expectOrder(workspaceCapture, "rendererState.finish()", "workspacePreviewNeedsHalfTurn(", "texture correction follows capture rendering");
+    expectOrder(workspaceCapture, "workspacePreviewNeedsHalfTurn(", "monitorState.restore()", "texture correction precedes monitor restoration");
+    const auto rotatedCapture = extractFunction(workspaceCapture, "if (isTransformRotated(monitorState.transform()))");
+    expectContains(rotatedCapture, "captureBox = {{0, 0}, {captureBox.h, captureBox.w}};", "only quarter-turn outputs swap capture geometry");
+    expectContains(rotatedCapture, "setMonitorGeometry(*request.monitor, WL_OUTPUT_TRANSFORM_NORMAL, captureBox.size(), captureBox.size())",
+                   "quarter-turn capture normalizes geometry and cached matrices together");
+    const auto monitorGuard = extractFunction(captureSource, "class CMonitorStateGuard");
+    expectContains(extractFunction(monitorGuard, "void restore()"), "setMonitorGeometry(*m_monitor, m_transform, m_pixelSize, m_transformedSize)",
+                   "the monitor guard restores geometry and cached matrices together");
+    expectContains(extractFunction(monitorGuard, "~CMonitorStateGuard()"), "restore()", "monitor geometry is restored on early returns and unwinding");
     const auto framebufferPreparation = extractFunction(captureSource, "bool preparePreviewFramebuffer(");
     expectContains(framebufferPreparation, "monitor->useFP16()", "preview allocation follows the monitor working-buffer precision");
     expectContains(framebufferPreparation, "DRM_FORMAT_ABGR16161616F", "FP16 previews retain HDR values beyond the integer range");
@@ -829,6 +889,22 @@ int main() {
     expectLastOrder(workspaceCapture, "renderWorkspace(", "restoreActiveWorkspaceAfterPreview(", "active workspace restores after rendering");
     expectLastOrder(workspaceCapture, "restoreActiveWorkspaceAfterPreview(", "rendererState.finish()", "workspace capture ends only after workspace restoration");
     expectContains(overviewConstructor, "captureWorkspacePreview(", "initial grid capture uses the shared workspace helper");
+    expectContains(overviewConstructor, "surface->m_events.commit.listen", "grid observes buffer geometry commits after the first capture");
+    const auto previewCommit = extractFunction(overviewConstructor, "]() mutable");
+    expectContains(previewCommit, "surfaceSize == SURFACE->m_current.size && bufferSize == SURFACE->m_current.bufferSize",
+                   "content-only commits do not refresh inactive previews");
+    expectContains(previewCommit, "WINDOW->m_workspace->m_monitor != MON", "preview commits remain scoped to the owning monitor");
+    expectContains(previewCommit, "WINDOW->m_workspace == MON->m_activeWorkspace", "active workspace commits retain the existing damage path");
+    expectContains(previewCommit, "WINDOW->isHidden()", "hidden clients do not invalidate preview tiles");
+    expectContains(previewCommit, "(WINDOW->m_state & Desktop::View::WINDOW_STATE_PINNED) && !showPinnedWindowsInPreview()", "suppressed pinned clients do not invalidate preview tiles");
+    expectContains(previewCommit, "queueRedrawID(TILE)", "changed buffer geometry queues the current workspace tile");
+    expectAbsent(previewCommit, "redrawID(", "surface commit callbacks never render synchronously");
+    expectContains(previewCommit, "if (closing || !SURFACE)", "closing overviews ignore surface commits");
+    expectOrder(overviewConstructor, "previewSurfaceCommitHooks.emplace_back", "surface->frame(Time::steadyNow())",
+                "initial inactive frame callbacks are released after listeners are registered");
+    expectContains(extractFunction(renderSource, "void COverview::onPreRender()"), "flushQueuedRedraws()", "buffer-driven redraws run during pre-render");
+    expectOrder(extractFunction(source, "COverview::~COverview()"), "previewSurfaceCommitHooks.clear()", "images.clear()",
+                "commit listeners disconnect before preview resources are destroyed");
     const auto redrawID = extractFunction(renderSource, "void COverview::redrawID(");
     expectContains(redrawID, "captureWorkspacePreview(", "grid redraw uses the shared workspace helper");
     expectAbsent(source, "g_pHyprRenderer->renderWorkspace(", "grid construction no longer duplicates workspace snapshot rendering");
@@ -1128,6 +1204,9 @@ int main() {
     expectContains(makefile, "scripts/inject-scrolling-input.sh", "Make source tests track the deterministic input harness");
     expectContains(makefile, "src/IOverviewSession.hpp", "Make headers include the overview interface");
     expectContains(makefile, "src/ScrollingOverview.hpp", "Make headers include the scrolling renderer contract");
+
+    for (const auto* configConsumer : {&source, &interactionSource, &renderSource})
+        expect(!cachesPluginConfigPointer(*configConsumer), "overview config pointers are reacquired after plugin reload");
 
     if (failures != 0)
         return 1;

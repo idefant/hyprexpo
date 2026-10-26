@@ -72,6 +72,7 @@ void restoreWorkspacePreviewStates(const std::vector<std::pair<PHLWORKSPACE, SWo
 void normalizeMonitorWorkspaceRenderState(PHLMONITOR monitor);
 
 bool showPinnedWindowsInPreview();
+bool monitorHasPinnedPreviewWindows(const PHLMONITOR& monitor);
 std::vector<SPinnedWindowPreviewState> applyPinnedWindowPreviewState(bool showPinnedWindows);
 void restorePinnedWindowPreviewState(const std::vector<SPinnedWindowPreviewState>& states);
 bool windowVisibleOnWorkspace(const PHLWINDOW& window, const PHLWORKSPACE& workspace);

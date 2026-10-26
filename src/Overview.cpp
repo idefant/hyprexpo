@@ -37,6 +37,7 @@
 #undef protected
 #include "OverviewPassElement.hpp"
 #include <hyprland/src/render/OpenGL.hpp>
+#include <hyprland/src/protocols/core/Compositor.hpp>
 #include <hyprland/src/config/shared/complex/ComplexDataTypes.hpp>
 #include <pango/pangocairo.h>
 #include <algorithm>
@@ -130,6 +131,7 @@ static Config::INTEGER intDefault(const std::string& name) {
     static const std::map<std::string, Config::INTEGER> DEFAULTS = {
         {"plugin:hyprexpo:columns", HyprexpoConfig::COLUMNS_DEFAULT},
         {"plugin:hyprexpo:rows", HyprexpoConfig::ROWS_DEFAULT},
+        {"plugin:hyprexpo:cross_monitor", HyprexpoConfig::CROSS_MONITOR_DEFAULT},
         {"plugin:hyprexpo:gaps_in", HyprexpoConfig::GAPS_IN_DEFAULT},
         {"plugin:hyprexpo:bg_col", HyprexpoConfig::BG_COL_DEFAULT},
         {"plugin:hyprexpo:gesture_distance", HyprexpoConfig::GESTURE_DISTANCE_DEFAULT},
@@ -481,6 +483,12 @@ void normalizeMonitorWorkspaceRenderState(PHLMONITOR monitor) {
 bool showPinnedWindowsInPreview() {
     auto* const* PSHOWPINNED = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:show_pinned_windows")->getDataStaticPtr();
     return **PSHOWPINNED != 0;
+}
+
+bool monitorHasPinnedPreviewWindows(const PHLMONITOR& monitor) {
+    return monitor && showPinnedWindowsInPreview() && std::ranges::any_of(Desktop::windowState()->windows(), [&](const auto& window) {
+        return window && window->mapped() && !window->isHidden() && (window->m_state & Desktop::View::WINDOW_STATE_PINNED) && window->m_monitor == monitor;
+    });
 }
 
 std::vector<SPinnedWindowPreviewState> applyPinnedWindowPreviewState(bool showPinnedWindows) {
@@ -1054,6 +1062,7 @@ Vector2D COverview::zoomSizeForCurrentGrid(const Vector2D& monitorSize) const {
 }
 
 COverview::~COverview() {
+    previewSurfaceCommitHooks.clear();
     if (redrawSettleTimer) {
         redrawSettleTimer->cancel();
         redrawSettleTimer.reset();
@@ -1105,6 +1114,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
     const int64_t maxWorkspace = std::max<Hyprlang::INT>(0, **PMAXWS);
     std::string   selector     = skipEmpty ? "m" : "r";
     emptyTilesSelectable = skipEmpty;
+    crossMonitor = HyprlandAPI::intValue("plugin:hyprexpo:cross_monitor") && !methodCenter && !skipEmpty && !dynamicGrid && methodStartID > 0;
 
     if (!methodCenter && !skipEmpty && maxWorkspace <= 0 && startedOn) {
         const int columns = Hyprexpo::gridColumnsToIncludeWorkspace(gridShape.cols, methodStartID, (int)workspaceID(startedOn),
@@ -1114,7 +1124,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
 
     images.resize(gridShape.cols * gridShape.rows);
 
-    const bool anchorSelector = !methodCenter || (!skipEmpty && maxWorkspace > 0 && methodStartID != workspaceID(startedOn));
+    const bool anchorSelector = !crossMonitor && (!methodCenter || (!skipEmpty && maxWorkspace > 0 && methodStartID != workspaceID(startedOn)));
     if (anchorSelector) {
         PHLWORKSPACE PWORKSPACESTART;
         for (const auto& workspace : State::workspaceState()->workspacesCopy()) {
@@ -1130,7 +1140,11 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
         pMonitor->m_activeWorkspace = PWORKSPACESTART;
     }
 
-    if (methodCenter) {
+    if (crossMonitor) {
+        const auto ids = Hyprexpo::absoluteWorkspaceIDs(methodStartID, images.size(), maxWorkspace);
+        for (size_t i = 0; i < images.size(); ++i)
+            images[i].workspaceID = ids[i];
+    } else if (methodCenter) {
         int currentID = methodStartID;
         int firstID   = currentID;
 
@@ -1312,14 +1326,18 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
             currentid = i;
 
         image.pWorkspace = PWORKSPACE;
-        Hyprexpo::Capture::captureWorkspacePreview({
+        if (Hyprexpo::Capture::captureWorkspacePreview({
             .monitor              = PMONITOR,
             .workspace            = PWORKSPACE,
             .startedOn            = startedOn,
             .box                  = monbox,
             .showPinnedWindows    = showPinnedWindowsInPreview(),
             .blockSurfaceFeedback = true,
-        }, image.fb);
+        }, image.fb)) {
+            const auto owner = PWORKSPACE ? PWORKSPACE->m_monitor.lock() : PHLMONITOR{};
+            image.wasActiveOnSource = owner && PWORKSPACE == owner->m_activeWorkspace;
+            image.hadPinnedWindows = monitorHasPinnedPreviewWindows(owner);
+        }
 
         image.box = tileBoxForIndex((int)i, pMonitor->m_size, GAP_WIDTH, 0.0, true);
     }
@@ -1378,8 +1396,6 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
         if (closing || info.cancelled)
             return;
 
-        auto* const* PDRAGDROPENABLE = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:drag_drop_enable")->getDataStaticPtr();
-
         if (!dynamic_cast<COverview*>(pointerOverview()))
             return;
 
@@ -1390,6 +1406,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
             return;
 
         info.cancelled = true;
+        const bool dragDropEnabled = HyprlandAPI::intValue("plugin:hyprexpo:drag_drop_enable");
 
         // If expo hasn't animated in enough to be visible, close silently without
         // consuming the event. This prevents phantom triggers (e.g. a bouncing
@@ -1400,12 +1417,12 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
         }
 
         if (event.state == WL_POINTER_BUTTON_STATE_PRESSED) {
-            if (**PDRAGDROPENABLE && TARGET)
+            if (dragDropEnabled && TARGET)
                 TARGET->beginWindowDrag();
             return;
         }
 
-        if (**PDRAGDROPENABLE && SOURCE) {
+        if (dragDropEnabled && SOURCE) {
             const bool CONSUMED = SOURCE->finishWindowDrag();
             if (CONSUMED)
                 return;
@@ -1448,4 +1465,52 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
     workspaceMoveHook = Event::bus()->m_events.window.moveToWorkspace.listen([this](PHLWINDOW window, PHLWORKSPACE workspace) { onWindowMoveToWorkspace(window, workspace); });
 
     enterSubmapIfEnabled();
+
+    // Inactive workspace commits do not damage the monitor. Recapture resized
+    // client buffers after they arrive, without making content-only commits live.
+    std::vector<WP<CWLSurfaceResource>> pendingPreviewFrames;
+    for (const auto& window : Desktop::windowState()->windows()) {
+        if (!validMapped(window) || window->isHidden() || ((window->m_state & Desktop::View::WINDOW_STATE_PINNED) && !showPinnedWindowsInPreview()) ||
+            !window->m_workspace || window->m_workspace->m_monitor != PMONITOR || !window->wlSurface())
+            continue;
+        const int tile = tileForWorkspaceID(workspaceID(window->m_workspace));
+        const auto surface = window->wlSurface()->resource();
+        if (!isTileValid(tile) || !images[tile].fb || !surface)
+            continue;
+
+        previewSurfaceCommitHooks.emplace_back(surface->m_events.commit.listen(
+            [this, windowRef = PHLWINDOWREF{window}, surfaceRef = WP<CWLSurfaceResource>{surface},
+             surfaceSize = surface->m_current.size, bufferSize = surface->m_current.bufferSize]() mutable {
+                const auto SURFACE = surfaceRef.lock();
+                if (closing || !SURFACE)
+                    return;
+                if (surfaceSize == SURFACE->m_current.size && bufferSize == SURFACE->m_current.bufferSize)
+                    return;
+                surfaceSize = SURFACE->m_current.size;
+                bufferSize = SURFACE->m_current.bufferSize;
+
+                const auto WINDOW = windowRef.lock();
+                const auto MON = pMonitor.lock();
+                if (!MON || !validMapped(WINDOW) || WINDOW->isHidden() || ((WINDOW->m_state & Desktop::View::WINDOW_STATE_PINNED) && !showPinnedWindowsInPreview()) ||
+                    !WINDOW->m_workspace || WINDOW->m_workspace->m_monitor != MON ||
+                    WINDOW->m_workspace == MON->m_activeWorkspace || !WINDOW->wlSurface() || WINDOW->wlSurface()->resource() != SURFACE)
+                    return;
+                const int TILE = tileForWorkspaceID(workspaceID(WINDOW->m_workspace));
+                if (!isTileValid(TILE))
+                    return;
+
+                queueRedrawID(TILE);
+                damage();
+                MON->scheduleFrame();
+            }));
+        if (window->m_workspace != PMONITOR->m_activeWorkspace)
+            pendingPreviewFrames.emplace_back(surface);
+    }
+
+    // Initial fake captures suppress frame feedback; release pending callbacks
+    // once listeners are ready, including swipe entry without an end callback.
+    for (const auto& surfaceRef : pendingPreviewFrames) {
+        if (const auto surface = surfaceRef.lock())
+            surface->frame(Time::steadyNow());
+    }
 }

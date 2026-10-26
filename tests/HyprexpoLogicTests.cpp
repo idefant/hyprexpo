@@ -4,6 +4,7 @@
 #include "../src/ScrollingInputState.hpp"
 #include "../src/ScrollingMutationTransaction.hpp"
 #include "../src/ScrollingRequestId.hpp"
+#include "../src/PreviewMonitorGeometry.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,6 +12,7 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -760,7 +762,117 @@ void checkScrollingMutationTransactions() {
 }
 
 int main() {
+    {
+        struct Tile {
+            int monitor;
+            bool visible;
+            bool wasActive;
+            bool hadPinned;
+        };
+        std::vector<Tile> tiles{{1, true, true, false}, {1, false, false, false}, {1, false, false, false},
+                                {1, false, false, false}, {2, true, true, true}};
+        const auto selected = [&](bool pinned) {
+            std::vector<int> result;
+            for (size_t i = 0; i < tiles.size(); ++i) {
+                const auto& tile = tiles[i];
+                if (Hyprexpo::shouldRefreshSourceWorkspace(tile.monitor == 1, tile.visible, tile.wasActive, pinned, tile.hadPinned))
+                    result.push_back(i);
+            }
+            return result;
+        };
+        for (int frame = 0; frame < 120; ++frame)
+            expect(selected(false) == std::vector<int>{0}, "video selects one tile despite several populated inactive workspaces");
+        expect(selected(true) == std::vector<int>({0, 1, 2, 3}), "visible pinned content refreshes all and only source-owned tiles");
+        for (auto& tile : tiles)
+            tile.hadPinned = tile.monitor == 1;
+        expect(selected(false) == std::vector<int>({0, 1, 2, 3}), "unpin, hide, close, or config disable clears the last captured pinned overlay");
+        for (auto& tile : tiles)
+            tile.hadPinned = false;
+        expect(selected(false) == std::vector<int>{0}, "completed pinned cleanup restores one capture per video frame");
+        tiles[0].visible = false;
+        tiles[1].visible = true;
+        expect(selected(false) == std::vector<int>({0, 1}), "instant workspace switch clears the old active tile's special overlay");
+        tiles[0].wasActive = false;
+        tiles[1].wasActive = true;
+        expect(selected(false) == std::vector<int>{1}, "switch cleanup does not keep the old active tile live");
+        tiles[0].visible = true;
+        expect(selected(false) == std::vector<int>({0, 1}), "outgoing visible or animated workspace remains live during transition");
+        tiles[0].visible = false;
+        expect(selected(false) == std::vector<int>{1}, "finished transition returns to one source tile");
+        tiles[1].visible = false;
+        tiles[1].wasActive = false;
+        expect(selected(false).empty(), "source with no visible represented workspace schedules no captures");
+    }
+
+    expect(Hyprexpo::absoluteWorkspaceIDs(1, 9, 0) == std::vector<int64_t>({1,2,3,4,5,6,7,8,9}), "cross-monitor first grid includes every absolute ID");
+    expect(Hyprexpo::absoluteWorkspaceIDs(6, 4, 8) == std::vector<int64_t>({6,7,8,-1}), "cross-monitor cap produces unselectable padding");
+    expect(Hyprexpo::absoluteWorkspaceIDs(6, 2, 5) == std::vector<int64_t>({-1,-1}), "cap below anchor stays empty");
+    expect(Hyprexpo::absoluteWorkspaceIDs(-1, 2, 0) == std::vector<int64_t>({-1,-1}), "special IDs are not absolute first anchors");
+    expect(Hyprexpo::absoluteWorkspaceIDs(INT64_MAX, 2, 0) == std::vector<int64_t>({INT64_MAX,-1}), "absolute workspace enumeration cannot overflow");
     using namespace Hyprexpo;
+
+    struct MonitorGeometry {
+        int m_transform;
+        std::pair<int, int> m_pixelSize;
+        std::pair<int, int> m_transformedSize;
+        int cachedTransform = -1;
+        std::pair<int, int> cachedPixelSize;
+        std::pair<int, int> cachedTransformedSize;
+        int refreshes = 0;
+        void updateMatrix() {
+            cachedTransform = m_transform;
+            cachedPixelSize = m_pixelSize;
+            cachedTransformedSize = m_transformedSize;
+            ++refreshes;
+        }
+    };
+    for (int transform = 0; transform < 8; ++transform) {
+        const std::pair<int, int> pixels{960, 600};
+        const std::pair<int, int> transformed = transform % 2 ? std::pair{600, 960} : pixels;
+        MonitorGeometry monitor{transform, pixels, transformed, transform, pixels, transformed, 0};
+        if (transform % 2) {
+            Capture::setMonitorGeometry(monitor, 0, transformed, transformed);
+            expect(monitor.cachedTransform == 0 && monitor.cachedPixelSize == transformed && monitor.cachedTransformedSize == transformed,
+                   "portrait capture publishes all geometry fields before refreshing matrices");
+            expect(monitor.refreshes == 1, "portrait normalization refreshes derived geometry once");
+        }
+        Capture::setMonitorGeometry(monitor, transform, pixels, transformed);
+        expect(monitor.cachedTransform == transform && monitor.cachedPixelSize == pixels && monitor.cachedTransformedSize == transformed,
+               "restoration rebuilds the original monitor matrices");
+        const int expectedRefreshes = transform % 2 ? 2 : 0;
+        expect(monitor.refreshes == expectedRefreshes, "unchanged non-portrait geometry does not refresh matrices");
+        Capture::setMonitorGeometry(monitor, transform, pixels, transformed);
+        expect(monitor.refreshes == expectedRefreshes, "repeated geometry restoration does not refresh matrices again");
+    }
+    for (int changedField = 0; changedField < 3; ++changedField) {
+        MonitorGeometry monitor{0, {960, 600}, {960, 600}, 0, {960, 600}, {960, 600}, 0};
+        const int transform = changedField == 0 ? 2 : 0;
+        const std::pair<int, int> pixels = changedField == 1 ? std::pair{1200, 800} : std::pair{960, 600};
+        const std::pair<int, int> transformed = changedField == 2 ? std::pair{600, 960} : std::pair{960, 600};
+        Capture::setMonitorGeometry(monitor, transform, pixels, transformed);
+        expect(monitor.refreshes == 1 && monitor.cachedTransform == transform && monitor.cachedPixelSize == pixels && monitor.cachedTransformedSize == transformed,
+               "changing any one monitor geometry field refreshes the complete derived state");
+    }
+
+    const struct {
+        int         transform;
+        const char* name;
+        bool        needsHalfTurn;
+    } previewTransforms[] = {
+        {0, "Normal", false},
+        {1, "Rotate90", false},
+        {2, "Rotate180", true},
+        {3, "Rotate270", false},
+        {4, "Flipped", false},
+        {5, "Flipped90", false},
+        {6, "Flipped180", false},
+        {7, "Flipped270", false},
+    };
+    for (const auto& test : previewTransforms)
+        expect(workspacePreviewNeedsHalfTurn(test.transform) == test.needsHalfTurn,
+               std::string{"workspace preview half-turn correction for "} + test.name);
+    expect(!workspacePreviewNeedsHalfTurn(-1), "negative output transforms need no preview correction");
+    expect(!workspacePreviewNeedsHalfTurn(8), "out-of-range output transforms need no preview correction");
 
     expect(trimString("  DP-1 first 1 \t") == "DP-1 first 1", "trimString removes surrounding whitespace");
     expect(splitCommaList("a, b,,c").size() == 4, "splitCommaList preserves empty entries");
@@ -1054,6 +1166,25 @@ int main() {
     checkScrollingMutationTransactions();
 
     // --- global multi-monitor geometry ---
+    {
+        // Five tiles in three columns: the centred second row sits between the columns above, so vertical moves go by
+        // drawn position. Down from the top-right tile reaches the bottom row, which a column index leaves empty.
+        const auto shape = computeDynamicGridShape(5);
+        std::vector<SGlobalTile> grid;
+        for (int i = 0; i < 5; ++i)
+            grid.push_back({.overviewKey = 1, .tileIndex = i, .overviewGlobal = {0, 0, 1920, 1080},
+                            .tileGlobal = computeTileLayout(i, 5, shape, {1920, 1080}, 5, true).box});
+        const auto down = [&](int from) {
+            const auto target = selectDirectionalTile(grid[from].tileGlobal, EDirection::Down, grid);
+            return target ? target->tileIndex : -1;
+        };
+        expect(shape.cols == 3 && shape.rows == 2, "five tiles make a three-by-two grid");
+        expect(down(0) == 3, "down from the top-left tile reaches the bottom-left tile");
+        expect(down(2) == 4, "down from the top-right tile reaches the bottom-right tile of a centred partial row");
+        const auto up = selectDirectionalTile(grid[4].tileGlobal, EDirection::Up, grid);
+        expect(up && (up->tileIndex == 1 || up->tileIndex == 2), "up from the bottom-right tile reaches a tile it sits under");
+    }
+
     {
         const SRect source{100, 100, 80, 80};
         const std::vector<SGlobalTile> candidates{

@@ -8,6 +8,12 @@
 
 namespace Hyprexpo {
 
+// Fixed first grids may explicitly include IDs owned by other monitors; -1 is padding.
+std::vector<int64_t> absoluteWorkspaceIDs(int64_t first, size_t count, int64_t cap);
+
+// Monitor damage has no window identity; pinned content is shared by source tiles.
+bool shouldRefreshSourceWorkspace(bool belongsToSource, bool visible, bool wasActive, bool hasPinned, bool hadPinned);
+
 struct SColorRGBA {
     float r = 0.F;
     float g = 0.F;
@@ -191,6 +197,10 @@ struct SGestureSyncDecision {
 std::string trimString(std::string value);
 std::string lowerString(std::string value);
 std::vector<std::string> splitCommaList(const std::string& value);
+
+// Wayland output transform encoding: Normal=0, Rotate90=1, Rotate180=2, Rotate270=3,
+// Flipped=4, Flipped90=5, Flipped180=6, Flipped270=7. Unknown values need no correction.
+bool workspacePreviewNeedsHalfTurn(int outputTransform);
 
 SGridShape               computeDynamicGridShape(int visibleCount);
 SGridShape               computeFixedGridShape(int64_t columns, int64_t rows);
