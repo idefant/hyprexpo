@@ -77,7 +77,9 @@ python3 tests/shared_desktops.py /tmp/hyprexpo-build/libhyprexpo.so /path/to/vir
 ```
 
 The integration test uses an isolated nested compositor, synthetic terminal windows,
-and `wtype` explicitly addressed to its Wayland socket. It refuses to inject into
+and `wtype` explicitly addressed to its Wayland socket. The test enables
+`resolve_binds_by_sym` only in that nested compositor for wtype's generated
+keymap; it never changes the user's keyboard settings. It refuses to inject into
 the parent display. It covers per-monitor ownership/previews, all nine slots,
 synchronized focus/selection, real keyboard events, cancellation, empty desktops,
 window moves, reload, hotplug with 1–3 outputs and missing-bridge refusal.

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Nested integration for hyprexpo + virtual-desktops. No parent output/input changes."""
+"""Nested integration for hyprexpo + virtual-desktops. No parent output/input changes.
+The nested-only resolve_binds_by_sym handles wtype's generated keymap.
+"""
 import json, os, subprocess, sys, tempfile, time
 from pathlib import Path
 expo=str(Path(sys.argv[1]).resolve())
@@ -7,8 +9,9 @@ vdesk=str(Path(sys.argv[2]).resolve())
 mode=sys.argv[3] if len(sys.argv)>3 else 'monitors'
 root=Path(tempfile.mkdtemp(prefix='hyprexpo-shared-test-'))
 config=root/'test.lua'
-config.write_text('''hl.monitor({output="",mode="800x600@60",position="auto",scale=1})
-hl.config({debug={disable_logs=false},animations={enabled=true},cursor={no_warps=false,warp_on_change_workspace=1,hide_on_key_press=true}})
+config.write_text('''hl.bind("SUPER + TAB", function() if hl.plugin.hyprexpo then hl.plugin.hyprexpo.expo("toggle all") end end)
+hl.monitor({output="",mode="800x600@60",position="auto",scale=1})
+hl.config({input={resolve_binds_by_sym=true},debug={disable_logs=false},animations={enabled=true},cursor={no_warps=false,warp_on_change_workspace=1,hide_on_key_press=true}})
 if hl.plugin.virtual_desktops then hl.config({plugin={virtual_desktops={cycleworkspaces=0,notifyinit=0,rememberlayout="'''+mode+'''",monitor_order="WAYLAND-1,VTEST-2,VTEST-3",names="1:1,2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9"}}}) end
 if hl.plugin.hyprexpo then hl.config({plugin={hyprexpo={virtual_desktops=1,overview_mode="grid",columns=3,rows=3,dynamic_grid=0,keynav_enable=0,max_workspace=9,label_enable=1,label_text_mode="id",wallpaper_bg=1}}}) end
 ''')
@@ -75,6 +78,8 @@ try:
   active={m['id']:m['activeWorkspace']['id'] for m in q('monitors')}
   ex('toggle');time.sleep(.6)
   sessions=state();assert len(sessions)==len(active),(stage,sessions)
+  current=next(d['id'] for d in q('printstate') if d['focused'])
+  assert {s['focusedDesktop'] for s in sessions}=={current},(stage,'initial selection differs across monitors',sessions)
   layouts={d['id']:set(d['workspaces']) for d in q('printstate')}
   seen=set()
   for s in sessions:
@@ -107,6 +112,12 @@ try:
   print('PASS live inactive preview: changed pixels',comparison.stderr.strip(),flush=True)
  print('PASS',mode,'two outputs; screenshot',root/'overview.png',flush=True)
  ex('cancel');wait_closed();assert_desk(1)
+ for _ in range(2):
+  subprocess.run(['wtype','-M','logo','-k','Tab','-m','logo'],env=nested_env,check=True,timeout=5)
+  time.sleep(.6)
+  assert len(state())==2, 'Opening Super+Tab must not cancel itself'
+  subprocess.run(['wtype','-M','logo','-k','Tab','-m','logo'],env=nested_env,check=True,timeout=5)
+  wait_closed();assert_desk(1)
  verify_open('keyboard navigation')
  lua('hl.plugin.hyprexpo.kb_focus("right")')
  assert {s['focusedDesktop'] for s in state()}=={2},state()

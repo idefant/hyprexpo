@@ -204,6 +204,7 @@ static SDispatchResult openOverviews(bool allMonitors) {
         open(PMONITOR);
 
     renderingOverview = false;
+    if (SharedDesktops::enabled()) SharedDesktops::initializeFocus();
     if (failed)
         return {.success = false, .error = "failed to initialize native scrolling overview"};
     return {};

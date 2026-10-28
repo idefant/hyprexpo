@@ -17,6 +17,7 @@
 
 namespace SharedDesktops {
 static std::map<int64_t, std::vector<int64_t>> layouts;
+static int currentDesktop = 1;
 bool enabled() {
   return CompatHyprlandAPI::intValue("plugin:hyprexpo:virtual_desktops") != 0;
 }
@@ -38,6 +39,14 @@ bool handleKey(const IKeyboard::SKeyEvent &event) {
   const auto baseKey = symbol(keyboard->m_xkbSymState);
   if (baseKey >= XKB_KEY_1 && baseKey <= XKB_KEY_9)
     key = baseKey;
+  // The Lua toggle binding can run before this listener in the same key event.
+  // Leave Super+Tab to its owning binding; treating that opening Tab as modal
+  // cancellation would immediately close the new sessions. Plain Tab cancels.
+  if ((key == XKB_KEY_Tab || key == XKB_KEY_ISO_Left_Tab) &&
+      keyboard->m_xkbState &&
+      xkb_state_mod_name_is_active(keyboard->m_xkbState, XKB_MOD_NAME_LOGO,
+                                   XKB_STATE_MODS_EFFECTIVE))
+    return false;
   switch (key) {
   case XKB_KEY_Escape:
   case XKB_KEY_Tab:
@@ -80,6 +89,7 @@ bool prepare(int count, std::string &error) {
     error = "virtual-desktops with vdeskoverview v1 is required";
     return false;
   }
+  currentDesktop = active;
   std::set<int64_t> owned;
   int desktop;
   int64_t monitor, workspace;
@@ -128,6 +138,7 @@ void syncFocus(int index) {
       grid->setKeyboardFocus(index);
   });
 }
+void initializeFocus() { syncFocus(std::clamp(currentDesktop - 1, 0, 8)); }
 bool closeSelecting(IOverviewSession *selecting) {
   auto *source = dynamic_cast<COverview *>(selecting);
   if (!source || !source->sharedDesktops)
