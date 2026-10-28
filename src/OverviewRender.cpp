@@ -1,3 +1,4 @@
+#include "SharedDesktops.hpp"
 #include "HyprlandConfigCompat.hpp"
 #define HyprlandAPI CompatHyprlandAPI
 #include "OverviewInternal.hpp"
@@ -188,6 +189,16 @@ void COverview::close(bool switchToSelection) {
 
     const int   SAFEID = std::clamp(ID, 0, (int)images.size() - 1);
     const auto& TILE   = images[SAFEID];
+
+    if (sharedDesktops) {
+        const auto sharedTargetSize = zoomSizeForCurrentGrid(MON->m_size);
+        *size = sharedTargetSize;
+        *pos = -(tilePosForID(SAFEID, sharedTargetSize, 0.0) * MON->m_scale);
+        closing = true;
+        redrawAll();
+        size->setCallbackOnEnd(removeOverview);
+        return;
+    }
 
     const auto SELECTED = switchToSelection && isTileValid(SAFEID) ? ensureWorkspaceForTile(SAFEID) : PHLWORKSPACE{};
     const auto TARGET = SELECTED ? SELECTED->m_monitor.lock() : PHLMONITOR{};
@@ -672,7 +683,7 @@ void COverview::fullRender() {
                 } else if (mode == "index") {
                     label = std::to_string(tokenCounter + 1);
                 } else {
-                    label = std::to_string(images[id].workspaceID);
+                    label = std::to_string(sharedDesktops ? id + 1 : images[id].workspaceID);
                 }
 
                 const int st = resolveState((int)id);

@@ -8,6 +8,7 @@ project(hyprexpo
 set(CMAKE_CXX_STANDARD 23)
 
 set(HYPREXPO_SRC
+    src/SharedDesktops.cpp
     src/main.cpp
     src/Dispatchers.cpp
     src/PluginConfig.cpp

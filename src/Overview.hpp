@@ -84,6 +84,11 @@ class COverview final : public IOverviewSession {
     PHLMONITOR monitor() const override { return pMonitor.lock(); }
     uint64_t sessionGeneration() const override { return m_sessionGeneration; }
 
+    bool sharedDesktops = false;
+    int selectedDesktop() const;
+    void followSelectedDesktop();
+    std::string sharedStateJson() const;
+
     bool          blockOverviewRendering = false;
     bool          blockDamageReporting   = false;
 

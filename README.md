@@ -1,3 +1,8 @@
+> **idefant fork:** native hyprexpo overview integrated with shared multi-monitor
+> desktops from [idefant/hyprland-virtual-desktops](https://github.com/idefant/hyprland-virtual-desktops).
+> See [setup, behavior, tests and rollback](docs/guides/shared-desktops.md).
+> Rendering/design remain hyprexpo; desktop ownership and switching remain in virtual-desktops.
+
 <div align="center">
 
 # HyprExpo

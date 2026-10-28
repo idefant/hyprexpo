@@ -1,3 +1,4 @@
+#include "SharedDesktops.hpp"
 #define WLR_USE_UNSTABLE
 
 #include <hyprland/src/Compositor.hpp>
@@ -133,12 +134,22 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
             OV->onPreRender();
     });
 
+    static auto PSHAREDREMOVE = Event::bus()->m_events.monitor.preRemoved.listen([](PHLMONITOR) {
+        if (SharedDesktops::enabled()) destroyAllOverviews();
+    });
+    static auto PSHAREDADD = Event::bus()->m_events.monitor.preAdded.listen([](PHLMONITOR) {
+        if (SharedDesktops::enabled()) destroyAllOverviews();
+    });
     static auto PMONITORREMOVED = Event::bus()->m_events.monitor.removed.listen([](PHLMONITOR monitor) {
         if (auto* const OV = overviewForMonitor(monitor))
             destroyOverview(OV);
     });
 
     static auto PKEY = Event::bus()->m_events.input.keyboard.key.listen([](IKeyboard::SKeyEvent event, Event::SCallbackInfo& info) {
+        if (SharedDesktops::handleKey(event)) {
+            info.cancelled = true;
+            return;
+        }
         if (shouldCancelOverview(event)) {
             info.cancelled = true;
             closeOverviews(false);
@@ -156,6 +167,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     });
 
     registerHyprexpoDispatchers();
+    SharedDesktops::registerStatus();
 
     registerHyprexpoConfigValues();
 
@@ -163,7 +175,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     syncExpoGestureFromConfig();
 
-    return {"hyprexpo", "hyprexpo+ with keyboard selection, labels, and borders", "sandwich", HYPREXPO_VERSION};
+    return {"hyprexpo", "hyprexpo+ with keyboard selection, labels, and borders", "sandwich + idefant", HYPREXPO_VERSION "-shared-desktops.1"};
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {

@@ -23,6 +23,7 @@ version_baked = run_command('sh', meson.current_source_dir() / 'scripts/version.
 add_project_arguments('-DHYPREXPO_VERSION="' + version_baked + '"', language: 'cpp')
 
 src = files(
+  'src/SharedDesktops.cpp',
   'src/main.cpp',
   'src/Dispatchers.cpp',
   'src/PluginConfig.cpp',

@@ -420,10 +420,10 @@ int main() {
     expect(boundsScanPos != std::string::npos && overviewConstructor.find("workspace->m_monitor != PMONITOR", boundsScanPos) != std::string::npos,
            "center-current bounds exclude workspaces owned by other monitors");
 
-    const auto cappedBranchStart = overviewConstructor.find("if (!skipEmpty && maxWorkspace > 0)");
+    const auto cappedBranchStart = overviewConstructor.find("if (!sharedDesktops && !skipEmpty && maxWorkspace > 0)");
     const auto centerBranchStart = overviewConstructor.find("if (methodCenter) {");
     const auto centerBranchEnd   = overviewConstructor.find("\n    } else {", centerBranchStart);
-    const auto cappedBranch      = extractFunction(overviewConstructor, "if (!skipEmpty && maxWorkspace > 0) {");
+    const auto cappedBranch      = extractFunction(overviewConstructor, "if (!sharedDesktops && !skipEmpty && maxWorkspace > 0) {");
     const auto centerBranch      = centerBranchStart == std::string::npos || centerBranchEnd == std::string::npos ? std::string{} :
                                                                                                                     overviewConstructor.substr(centerBranchStart, centerBranchEnd - centerBranchStart);
     expect(!cappedBranch.empty(), "capped regular-grid branch exists");

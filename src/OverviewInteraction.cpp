@@ -1,3 +1,4 @@
+#include "SharedDesktops.hpp"
 #include "HyprlandConfigCompat.hpp"
 #define HyprlandAPI CompatHyprlandAPI
 #include "OverviewInternal.hpp"
@@ -82,6 +83,7 @@ void COverview::updateHoveredFromMouse() {
         return;
 
     hoveredID = newHoveredID;
+    if (sharedDesktops && isTileValid(hoveredID)) SharedDesktops::syncFocus(hoveredID);
     damage();
 }
 
@@ -610,11 +612,12 @@ bool COverview::onKbMoveFocus(const std::string& dir) {
         return false;
 
     if (moveFocus(dx, dy)) {
+        if (sharedDesktops) SharedDesktops::syncFocus(kbFocusID);
         damage();
         return true;
     }
 
-    return moveOverviewFocusAcrossMonitors(this, direction);
+    return sharedDesktops ? false : moveOverviewFocusAcrossMonitors(this, direction);
 }
 
 bool COverview::onKbConfirm() {
@@ -634,7 +637,7 @@ bool COverview::onKbSelectNumber(int num) {
     if (num == 0)
         num = 10;
 
-    return selectWorkspaceByID(num);
+    return sharedDesktops ? selectVisibleIndex(num - 1) : selectWorkspaceByID(num);
 }
 
 bool COverview::onKbSelectToken(int visibleIdx) {
@@ -812,4 +815,29 @@ void COverview::enterSubmapIfEnabled() {
 
 void COverview::resetSubmapIfNeeded() {
     leaveOverviewSubmap(submapActive);
+}
+
+int COverview::selectedDesktop() const {
+    const int id = closeOnID == -1 ? openedID : closeOnID;
+    return sharedDesktops && isTileValid(id) ? id + 1 : -1;
+}
+void COverview::followSelectedDesktop() {
+    if (const auto mon = monitor()) startedOn = mon->m_activeWorkspace;
+}
+std::string COverview::sharedStateJson() const {
+    const auto mon = monitor();
+    std::string out = "{\"monitor\":" + std::to_string(mon ? mon->m_id : -1) +
+        ",\"shared\":" + (sharedDesktops ? "true" : "false") +
+        ",\"closing\":" + (closing ? "true" : "false") +
+        ",\"focusedDesktop\":" + std::to_string(kbFocusID + 1) + ",\"tiles\":[";
+    for (size_t i = 0; i < images.size(); ++i) {
+        if (i) out += ',';
+        const auto& image = images[i];
+        int windows = 0;
+        for (const auto& w : Desktop::windowState()->windows())
+            if (w && w->m_isMapped && !w->isHidden() && w->m_workspace && w->m_workspace->m_id == image.workspaceID && w->m_monitor == mon) ++windows;
+        out += "{\"desktop\":" + std::to_string(i+1) + ",\"workspace\":" + std::to_string(image.workspaceID) +
+            ",\"windows\":" + std::to_string(windows) + ",\"captured\":" + (image.fb ? "true" : "false") + "}";
+    }
+    return out + "]}";
 }

@@ -1,3 +1,4 @@
+#include "SharedDesktops.hpp"
 #define WLR_USE_UNSTABLE
 
 #include "Dispatchers.hpp"
@@ -184,6 +185,11 @@ static SDispatchResult bringWindowFromWorkspace(int64_t sourceWorkspaceID, const
 
 // Open on every monitor, or just the one under the cursor.
 static SDispatchResult openOverviews(bool allMonitors) {
+    if (SharedDesktops::enabled()) {
+        allMonitors = true;
+        std::string error;
+        if (!SharedDesktops::prepare(9, error)) return {.success = false, .error = error};
+    }
     renderingOverview = true;
     bool failed = false;
     const auto open = [&failed](const PHLMONITOR& monitor) {
@@ -211,7 +217,7 @@ static SDispatchResult changeToSingleDigitWorkspace(const std::string& arg) {
     const int workspaceID = arg[0] - '0';
 
     if (auto* const OV = activeOverview()) {
-        if (OV->selectWorkspaceByID(workspaceID)) {
+        if (SharedDesktops::enabled() ? OV->onKbSelectNumber(workspaceID) : OV->selectWorkspaceByID(workspaceID)) {
             closeOverviewsSelecting(OV);
             return {};
         }
@@ -442,6 +448,10 @@ static int luaKbSelectToken(lua_State* L) {
 
 static int luaKbSelectIndex(lua_State* L) {
     return luaDispatchResult(L, "hyprexpo.kb_selecti", onKbSelectIndexDispatcher(luaIntegerArg(L, 1, "hyprexpo.kb_selecti")));
+}
+
+static int luaMoveWindow(lua_State* L) {
+    return luaDispatchResult(L, "hyprexpo.move_window", onMovePreviewWindowDispatcher(luaStringArg(L, 1, "hyprexpo.move_window")));
 }
 
 static int luaGesture(lua_State* L) {
@@ -768,6 +778,7 @@ void registerHyprexpoDispatchers() {
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprexpo:scrolling_mutation_test", onScrollingMutationTestDispatcher);
 
     HyprlandAPI::addLuaFunction(PHANDLE, "hyprexpo", "expo", luaExpo);
+    HyprlandAPI::addLuaFunction(PHANDLE, "hyprexpo", "move_window", luaMoveWindow);
     HyprlandAPI::addLuaFunction(PHANDLE, "hyprexpo", "kb_focus", luaKbFocus);
     HyprlandAPI::addLuaFunction(PHANDLE, "hyprexpo", "kb_confirm", luaKbConfirm);
     HyprlandAPI::addLuaFunction(PHANDLE, "hyprexpo", "kb_selectn", luaKbSelectNumber);

@@ -1,3 +1,4 @@
+#include "SharedDesktops.hpp"
 #include "Overview.hpp"
 #include <any>
 #include <map>
@@ -890,6 +891,7 @@ void resetOverviewDrag(Hyprexpo::EOverviewDragEventType type, uint64_t monitorKe
 void closeOverviewsSelecting(IOverviewSession* selecting) {
     resetOverviewDrag(Hyprexpo::EOverviewDragEventType::AllClose);
     g_keyboardOverviewMonitor.reset();
+    if (SharedDesktops::closeSelecting(selecting)) return;
     forEachOverview([selecting](IOverviewSession& overview) { overview.close(&overview == selecting); });
 }
 
@@ -1112,6 +1114,9 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
     wallpaperBg          = **PWALLBG;
     dynamicGrid          = **PDYNAMIC;
 
+    sharedDesktops = SharedDesktops::enabled();
+    if (sharedDesktops) { dynamicGrid = false; gridShape = {3, 3}; }
+
     // Get workspace method for this specific monitor
     auto [methodCenter, methodStartID] = getWorkspaceMethodForMonitor(pMonitor.lock());
 
@@ -1130,7 +1135,8 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
 
     images.resize(gridShape.cols * gridShape.rows);
 
-    const bool anchorSelector = !crossMonitor && (!methodCenter || (!skipEmpty && maxWorkspace > 0 && methodStartID != startedOn->m_id));
+    if (sharedDesktops) crossMonitor = false;
+    const bool anchorSelector = !sharedDesktops && !crossMonitor && (!methodCenter || (!skipEmpty && maxWorkspace > 0 && methodStartID != startedOn->m_id));
     if (anchorSelector) {
         PHLWORKSPACE PWORKSPACESTART;
         for (const auto& workspace : State::workspaceState()->workspacesCopy()) {
@@ -1146,7 +1152,11 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
         pMonitor->m_activeWorkspace = PWORKSPACESTART;
     }
 
-    if (crossMonitor) {
+    if (sharedDesktops) {
+        const auto ids = SharedDesktops::workspaces(PMONITOR);
+        if (ids.size() != images.size()) throw std::runtime_error("missing shared desktop snapshot");
+        for (size_t i = 0; i < images.size(); ++i) images[i].workspaceID = ids[i];
+    } else if (crossMonitor) {
         const auto ids = Hyprexpo::absoluteWorkspaceIDs(methodStartID, images.size(), maxWorkspace);
         for (size_t i = 0; i < images.size(); ++i)
             images[i].workspaceID = ids[i];
@@ -1238,7 +1248,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
         pMonitor->m_activeWorkspace = startedOn;
 
     // Keep Hyprland's monitor-aware ordering and apply the cap only to emitted IDs.
-    if (!skipEmpty && maxWorkspace > 0) {
+    if (!sharedDesktops && !skipEmpty && maxWorkspace > 0) {
         for (auto& image : images) {
             if (image.workspaceID > maxWorkspace)
                 image.workspaceID = WORKSPACE_INVALID;
@@ -1471,7 +1481,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
                 const auto SURFACE = surfaceRef.lock();
                 if (closing || !SURFACE)
                     return;
-                if (surfaceSize == SURFACE->m_current.size && bufferSize == SURFACE->m_current.bufferSize)
+                if (!sharedDesktops && surfaceSize == SURFACE->m_current.size && bufferSize == SURFACE->m_current.bufferSize)
                     return;
                 surfaceSize = SURFACE->m_current.size;
                 bufferSize = SURFACE->m_current.bufferSize;
@@ -1480,7 +1490,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, PHLMONITOR monitor_, bool swipe_, 
                 const auto MON = pMonitor.lock();
                 if (!MON || !validMapped(WINDOW) || WINDOW->isHidden() || (WINDOW->m_pinned && !showPinnedWindowsInPreview()) ||
                     !WINDOW->m_workspace || WINDOW->m_workspace->m_monitor != MON ||
-                    WINDOW->m_workspace == MON->m_activeWorkspace || !WINDOW->wlSurface() || WINDOW->wlSurface()->resource() != SURFACE)
+                    (!sharedDesktops && WINDOW->m_workspace == MON->m_activeWorkspace) || !WINDOW->wlSurface() || WINDOW->wlSurface()->resource() != SURFACE)
                     return;
                 const int TILE = tileForWorkspaceID(WINDOW->m_workspace->m_id);
                 if (!isTileValid(TILE))

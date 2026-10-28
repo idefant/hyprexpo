@@ -27,6 +27,7 @@ static std::expected<void, std::string> validateGestureDirection(const Config::S
 }
 
 void registerHyprexpoConfigValues() {
+    addConfigValue(makeShared<Config::Values::CIntValue>("plugin:hyprexpo:virtual_desktops", "shared desktop bridge (vdeskoverview v1)", 0));
     addConfigValue(makeShared<Config::Values::CIntValue>("plugin:hyprexpo:dynamic_grid", "legacy dynamic grid toggle", HyprexpoConfig::LEGACY_DYNAMIC_GRID_DEFAULT));
     addConfigValue(makeShared<Config::Values::CIntValue>("plugin:hyprexpo:fill_gaps", "legacy gap filling toggle", HyprexpoConfig::LEGACY_FILL_GAPS_DEFAULT));
     addConfigValue(makeShared<Config::Values::CIntValue>("plugin:hyprexpo:mru_sort", "legacy mru sorting toggle", HyprexpoConfig::LEGACY_MRU_SORT_DEFAULT));
