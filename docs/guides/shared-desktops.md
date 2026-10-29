@@ -22,8 +22,8 @@ hotplug reconciliation remain in that plugin.
 - Reload and check `hyprctl configerrors`. A configuration reload alone does not
   replace an already loaded `.so`: explicitly replace that plugin or log in again.
 
-The Lua example restores the previous grid styling used on this machine. Styling
-options remain upstream hyprexpo options; `virtual_desktops=1` enables this bridge.
+The Lua example configures a 3×3 grid with rounded tiles and workspace labels.
+Styling options remain upstream hyprexpo options; `virtual_desktops=1` enables this bridge.
 With the option off, normal upstream grid behavior is retained.
 
 ## Shared mode behavior
@@ -42,8 +42,7 @@ With the option off, normal upstream grid behavior is retained.
   retains upstream behavior.
 - Topology changes close the frozen overview before its mapping becomes stale.
   Reopening obtains the current mapping, including after repeated unplug/replug.
-- The scratchpad controller, cursor redraw plugin, cursor visibility/warping and
-  Mouse Modes are separate and retain their configuration.
+- Scratchpad management and cursor rendering are handled by separate components.
 
 Gesture-driven shared overviews are not configured or covered by acceptance tests;
 leave `gesture_fingers=0` and do not register an expo gesture for shared mode.
@@ -79,19 +78,17 @@ python3 tests/shared_desktops.py /tmp/hyprexpo-build/libhyprexpo.so /path/to/vir
 The integration test uses an isolated nested compositor, synthetic terminal windows,
 and `wtype` explicitly addressed to its Wayland socket. The test enables
 `resolve_binds_by_sym` only in that nested compositor for wtype's generated
-keymap; it never changes the user's keyboard settings. It refuses to inject into
+keymap. The test refuses to inject into
 the parent display. It covers per-monitor ownership/previews, all nine slots,
 synchronized focus/selection, real keyboard events, cancellation, empty desktops,
 window moves, reload, hotplug with 1–3 outputs and missing-bridge refusal.
 Set `HYPREXPO_TEST_LIVE=1` to also compare pixels of an inactive animated
-terminal preview (requires ImageMagick). This check passed in a separate nested run.
-Screenshots and logs go under /tmp. No parent monitor is disconnected and no user
-browser profile, clipboard or window content is inspected. Physical cable hotplug
-and the final visual result on the user's actual screens require user testing.
+terminal preview (requires ImageMagick).
+Screenshots and logs are written under /tmp. Automated coverage uses virtual
+outputs; physical display hotplug and visual rendering require separate validation.
 
 ## Rollback
 
-Restore the previous Super+Tab action that toggled the saved QML overlay, remove
-`require("hypr.overview")`, then reload/check errors. Unload this hyprexpo library
-after removing its use. Keep virtual-desktops and the cursor plugin loaded.
-The existing bar indicator can remain enabled with either overview.
+Remove the hyprexpo binding and `require("hypr.overview")`, then reload and
+check configuration errors before unloading the plugin. Configure the replacement
+overview separately. Virtual-desktops and the bar indicator can remain enabled.

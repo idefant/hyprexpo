@@ -1,6 +1,6 @@
 -- Native hyprexpo design with shared desktops from virtual-desktops.
 local M = {}
-local library = (os.getenv("HOME") or "/home/idefant") .. "/.local/lib/hyprland-plugins/hyprexpo.so"
+local library = assert(os.getenv("HOME"), "HOME must be set") .. "/.local/lib/hyprland-plugins/hyprexpo.so"
 hl.plugin.load(library)
 local function configure()
   if not hl.plugin.hyprexpo then return end
